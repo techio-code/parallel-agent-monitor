@@ -50,11 +50,14 @@
       min-height: 100vh;
     }
 
+    /* ===== PRO UPGRADE 2026-05-31 — 開発者向け洗練 ===== */
+
     /* --- Header --- */
     .header {
-      background: #ffffff;
-      border-bottom: 1.5px solid var(--color-border);
-      padding: var(--space-md) var(--space-lg);
+      background: #0A0A0F;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      padding: 0 48px;
+      height: 52px;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -68,57 +71,76 @@
     .header-left {
       display: flex;
       align-items: center;
-      gap: var(--space-sm);
+      gap: 14px;
     }
 
     .header-logo {
-      width: 32px;
-      height: 32px;
+      width: 28px;
+      height: 28px;
       background: var(--color-primary);
-      border-radius: 8px;
+      border-radius: 4px;
       display: flex;
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
     }
 
-    .header-logo svg { width: 18px; height: 18px; fill: #fff; }
+    .header-logo svg { width: 16px; height: 16px; fill: #fff; }
 
     .header-title {
-      font-size: 18px;
+      font-size: 14px;
       font-weight: 700;
-      color: var(--color-text-primary);
-      letter-spacing: 0.02em;
+      color: rgba(255,255,255,0.9);
+      letter-spacing: 0.06em;
     }
 
     .header-subtitle {
-      font-size: 12px;
-      color: var(--color-text-secondary);
       font-family: var(--font-mono);
-      margin-top: 1px;
+      font-size: 9px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.28);
+      margin-top: 2px;
     }
 
-    /* --- Summary Bar --- */
+    /* --- Summary Bar — プロ品質: Stripe風Stats ===== */
     .summary-bar {
       background: #ffffff;
       border-bottom: 1px solid var(--color-border);
-      padding: var(--space-sm) var(--space-lg);
       display: flex;
-      gap: var(--space-xl);
-      align-items: center;
-      font-size: 13px;
-      font-family: var(--font-mono);
       flex-wrap: wrap;
     }
 
-    .summary-stat { display: flex; align-items: center; gap: var(--space-xs); }
-    .summary-dot { width: 8px; height: 8px; border-radius: 50%; }
-    .dot-running  { background: var(--color-primary); animation: pulse 1.4s ease-in-out infinite; }
-    .dot-done     { background: var(--color-success); }
-    .dot-failed   { background: var(--color-error); }
-    .dot-overdue  { background: var(--color-warning); }
-    .summary-label { color: var(--color-text-secondary); }
-    .summary-value { font-weight: 600; color: var(--color-text-primary); }
+    .summary-stat {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      padding: 16px 32px;
+      border-right: 1px solid var(--color-border);
+      flex: 1;
+      min-width: 100px;
+    }
+    .summary-stat:last-child { border-right: none; }
+
+    .summary-dot { display: none; }  /* Stats bar では不要 */
+
+    .summary-label {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-text-secondary);
+      order: 2;
+    }
+    .summary-value {
+      font-family: var(--font-mono);
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      letter-spacing: -0.02em;
+      line-height: 1;
+      order: 1;
+    }
 
     @keyframes pulse {
       0%, 100% { opacity: 1; }
@@ -127,7 +149,7 @@
 
     /* --- Main Layout --- */
     .main {
-      padding: var(--space-lg);
+      padding: 40px 48px 64px;
       max-width: 1200px;
       margin: 0 auto;
     }
@@ -135,17 +157,20 @@
     /* --- Add Form --- */
     .form-card {
       background: #ffffff;
-      border-radius: var(--radius-md);
-      padding: var(--space-lg);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+      border-radius: 4px;
+      border: 1px solid var(--color-border);
+      padding: var(--space-xl);
       margin-bottom: var(--space-xl);
     }
 
     .form-card-title {
-      font-size: 15px;
-      font-weight: 700;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
       margin-bottom: var(--space-md);
-      color: var(--color-text-primary);
+      color: var(--color-text-secondary);
       display: flex;
       align-items: center;
       gap: var(--space-sm);
@@ -272,28 +297,37 @@
 
     .tasks-actions { display: flex; gap: var(--space-sm); }
 
+    .tasks-title {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-text-secondary);
+    }
+
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-      gap: var(--space-lg);
+      gap: var(--space-md);
     }
 
-    /* --- Task Card --- */
+    /* --- Task Card — プロ品質: radius統一・shadow削除・border強調 --- */
     .task-card {
       background: #ffffff;
-      border-radius: var(--radius-md);
+      border-radius: 4px;
       padding: var(--space-lg);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.07);
-      border-left: 4px solid var(--color-border);
-      transition: box-shadow 0.2s, border-color 0.2s, transform 0.15s;
+      border: 1px solid var(--color-border);
+      border-left: 3px solid var(--color-border);
+      transition: border-color 0.15s;
       position: relative;
       overflow: hidden;
     }
 
-    .task-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.11); }
+    .task-card:hover { border-color: rgba(108,99,255,0.3); }
 
     .task-card.running  { border-left-color: var(--color-primary); }
-    .task-card.done     { border-left-color: var(--color-success); opacity: 0.85; }
+    .task-card.done     { border-left-color: var(--color-success); opacity: 0.82; }
     .task-card.failed   { border-left-color: var(--color-error); }
     .task-card.overdue  { border-left-color: var(--color-warning); }
     .task-card.critical { border-left-color: var(--color-error); }
