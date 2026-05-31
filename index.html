@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Parallel Agent Monitor</title>
+  <meta name="description" content="Claude Code で並列実行中のエージェントを一覧管理。経過時間・超過アラート・完了マークをリアルタイム表示。">
+  <meta property="og:title" content="Parallel Agent Monitor">
+  <meta property="og:description" content="Claude Code で並列実行中のエージェントをリアルタイム可視化。経過時間・超過アラート・完了マークを一覧表示。">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://techio-code.github.io/parallel-agent-monitor/">
+  <meta property="og:image" content="https://techio-code.github.io/parallel-agent-monitor/ogp.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    /* --- Design System: Mode A Tech (Business/Utility) --- */
+    :root {
+      --color-primary:        #6C63FF;
+      --color-accent:         #00D4AA;
+      --color-warning:        #FBA32A;
+      --color-error:          #FF5252;
+      --color-success:        #00D4AA;
+      --color-text-primary:   #2D2D2D;
+      --color-text-secondary: #888888;
+      --color-light:          #F8F9FF;
+      --color-border:         #E0E0E8;
+
+      --font-sans: 'Noto Sans JP', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+
+      --space-xs:  4px;
+      --space-sm:  8px;
+      --space-md:  16px;
+      --space-lg:  24px;
+      --space-xl:  32px;
+      --space-2xl: 48px;
+
+      --radius-sm: 8px;
+      --radius-md: 12px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-light);
+      color: var(--color-text-primary);
+      min-height: 100vh;
+    }
+
+    /* --- Header --- */
+    .header {
+      background: #ffffff;
+      border-bottom: 1.5px solid var(--color-border);
+      padding: var(--space-md) var(--space-lg);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-md);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      flex-wrap: wrap;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    .header-logo {
+      width: 32px;
+      height: 32px;
+      background: var(--color-primary);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .header-logo svg { width: 18px; height: 18px; fill: #fff; }
+
+    .header-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--color-text-primary);
+      letter-spacing: 0.02em;
+    }
+
+    .header-subtitle {
+      font-size: 12px;
+      color: var(--color-text-secondary);
+      font-family: var(--font-mono);
+      margin-top: 1px;
+    }
+
+    /* --- Summary Bar --- */
+    .summary-bar {
+      background: #ffffff;
+      border-bottom: 1px solid var(--color-border);
+      padding: var(--space-sm) var(--space-lg);
+      display: flex;
+      gap: var(--space-xl);
+      align-items: center;
+      font-size: 13px;
+      font-family: var(--font-mono);
+      flex-wrap: wrap;
+    }
+
+    .summary-stat { display: flex; align-items: center; gap: var(--space-xs); }
+    .summary-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .dot-running  { background: var(--color-primary); animation: pulse 1.4s ease-in-out infinite; }
+    .dot-done     { background: var(--color-success); }
+    .dot-failed   { background: var(--color-error); }
+    .dot-overdue  { background: var(--color-warning); }
+    .summary-label { color: var(--color-text-secondary); }
+    .summary-value { font-weight: 600; color: var(--color-text-primary); }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* --- Main Layout --- */
+    .main {
+      padding: var(--space-lg);
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* --- Add Form --- */
+    .form-card {
+      background: #ffffff;
+      border-radius: var(--radius-md);
+      padding: var(--space-lg);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+      margin-bottom: var(--space-xl);
+    }
+
+    .form-card-title {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: var(--space-md);
+      color: var(--color-text-primary);
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 160px 130px auto;
+      gap: var(--space-sm);
+      align-items: end;
+    }
+
+    @media (max-width: 680px) {
+      .form-row {
+        grid-template-columns: 1fr 1fr;
+      }
+      .form-row .btn-primary { grid-column: 1 / -1; }
+    }
+
+    .form-group { display: flex; flex-direction: column; gap: 4px; }
+
+    .form-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-text-secondary);
+      letter-spacing: 0.05em;
+    }
+
+    .input {
+      height: 44px;
+      padding: 0 var(--space-md);
+      border-radius: var(--radius-sm);
+      border: 1.5px solid var(--color-border);
+      font-size: 14px;
+      font-family: var(--font-sans);
+      color: var(--color-text-primary);
+      background: #fff;
+      transition: border-color 0.2s;
+      outline: none;
+      width: 100%;
+    }
+
+    .input:focus {
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 3px rgba(108,99,255,0.12);
+    }
+
+    .input::placeholder { color: var(--color-text-secondary); font-size: 13px; }
+
+    /* --- Import Section --- */
+    .import-row {
+      display: flex;
+      gap: var(--space-sm);
+      margin-top: var(--space-md);
+      padding-top: var(--space-md);
+      border-top: 1px solid var(--color-border);
+      flex-wrap: wrap;
+    }
+
+    .import-textarea {
+      flex: 1;
+      min-width: 220px;
+      height: 72px;
+      padding: var(--space-sm) var(--space-md);
+      border-radius: var(--radius-sm);
+      border: 1.5px solid var(--color-border);
+      font-size: 12px;
+      font-family: var(--font-mono);
+      color: var(--color-text-primary);
+      background: #fff;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .import-textarea:focus {
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 3px rgba(108,99,255,0.12);
+    }
+
+    .import-textarea::placeholder { color: var(--color-text-secondary); font-size: 11px; line-height: 1.6; }
+
+    /* --- Buttons --- */
+    .btn {
+      height: 44px;
+      min-width: 44px;
+      padding: 0 var(--space-lg);
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+      font-weight: 600;
+      font-family: var(--font-sans);
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: none;
+      white-space: nowrap;
+    }
+
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn:not(:disabled):hover { filter: brightness(1.08); transform: translateY(-1px); }
+    .btn:not(:disabled):active { transform: translateY(0); }
+
+    .btn-primary { background: var(--color-primary); color: #fff; }
+    .btn-secondary { background: transparent; color: var(--color-primary); border: 1.5px solid var(--color-primary); }
+    .btn-ghost { background: transparent; color: var(--color-text-secondary); border: 1.5px solid var(--color-border); }
+    .btn-sm { height: 34px; padding: 0 var(--space-md); font-size: 12px; }
+
+    /* --- Task Grid --- */
+    .tasks-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-md);
+      flex-wrap: wrap;
+      gap: var(--space-sm);
+    }
+
+    .tasks-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--color-text-secondary);
+      letter-spacing: 0.05em;
+    }
+
+    .tasks-actions { display: flex; gap: var(--space-sm); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: var(--space-lg);
+    }
+
+    /* --- Task Card --- */
+    .task-card {
+      background: #ffffff;
+      border-radius: var(--radius-md);
+      padding: var(--space-lg);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.07);
+      border-left: 4px solid var(--color-border);
+      transition: box-shadow 0.2s, border-color 0.2s, transform 0.15s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .task-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.11); }
+
+    .task-card.running  { border-left-color: var(--color-primary); }
+    .task-card.done     { border-left-color: var(--color-success); opacity: 0.85; }
+    .task-card.failed   { border-left-color: var(--color-error); }
+    .task-card.overdue  { border-left-color: var(--color-warning); }
+    .task-card.critical { border-left-color: var(--color-error); }
+
+    /* Shimmer for running */
+    .task-card.running::after {
+      content: '';
+      position: absolute;
+      top: 0; right: 0;
+      width: 3px;
+      height: 100%;
+      background: var(--color-primary);
+      animation: shimmer 1.8s ease-in-out infinite;
+    }
+
+    @keyframes shimmer {
+      0%, 100% { opacity: 0.3; }
+      50%       { opacity: 1; }
+    }
+
+    .card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-md);
+    }
+
+    .task-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--color-text-primary);
+      word-break: break-word;
+      line-height: 1.4;
+      flex: 1;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      height: 22px;
+      padding: 0 var(--space-sm);
+      border-radius: 100px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .badge-running  { background: rgba(108,99,255,0.12); color: var(--color-primary); }
+    .badge-done     { background: rgba(0,212,170,0.12);  color: var(--color-success); }
+    .badge-failed   { background: rgba(255,82,82,0.12);  color: var(--color-error); }
+    .badge-overdue  { background: rgba(251,163,42,0.15); color: #d4820a; }
+    .badge-critical { background: rgba(255,82,82,0.15);  color: var(--color-error); }
+
+    /* --- Timer Display --- */
+    .timer-block {
+      margin-bottom: var(--space-md);
+    }
+
+    .timer-elapsed {
+      font-family: var(--font-mono);
+      font-size: 28px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      letter-spacing: 0.02em;
+      line-height: 1;
+    }
+
+    .task-card.done     .timer-elapsed { color: var(--color-success); }
+    .task-card.failed   .timer-elapsed { color: var(--color-error); }
+    .task-card.overdue  .timer-elapsed { color: #d4820a; }
+    .task-card.critical .timer-elapsed { color: var(--color-error); }
+
+    .timer-sub {
+      font-size: 12px;
+      color: var(--color-text-secondary);
+      font-family: var(--font-mono);
+      margin-top: var(--space-xs);
+    }
+
+    /* --- Progress Bar --- */
+    .progress-wrap {
+      background: var(--color-border);
+      border-radius: 100px;
+      height: 6px;
+      margin-bottom: var(--space-md);
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      height: 100%;
+      border-radius: 100px;
+      transition: width 1s linear, background 0.5s;
+    }
+
+    /* --- Card Footer --- */
+    .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-sm);
+    }
+
+    .card-meta {
+      font-size: 11px;
+      color: var(--color-text-secondary);
+      font-family: var(--font-mono);
+      line-height: 1.5;
+    }
+
+    .card-actions { display: flex; gap: var(--space-xs); }
+
+    .icon-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      border: 1px solid var(--color-border);
+      background: transparent;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--color-text-secondary);
+      transition: all 0.15s;
+      font-size: 14px;
+    }
+
+    .icon-btn:hover { background: var(--color-light); color: var(--color-text-primary); }
+    .icon-btn.done-btn:hover  { background: rgba(0,212,170,0.1);  color: var(--color-success); border-color: var(--color-success); }
+    .icon-btn.fail-btn:hover  { background: rgba(255,82,82,0.1);  color: var(--color-error); border-color: var(--color-error); }
+    .icon-btn.del-btn:hover   { background: rgba(255,82,82,0.08); color: var(--color-error); border-color: var(--color-error); }
+
+    /* --- Empty State --- */
+    .empty-state {
+      text-align: center;
+      padding: var(--space-2xl) var(--space-lg);
+      color: var(--color-text-secondary);
+    }
+
+    .empty-icon {
+      font-size: 48px;
+      margin-bottom: var(--space-md);
+      opacity: 0.5;
+    }
+
+    .empty-title { font-size: 18px; font-weight: 700; margin-bottom: var(--space-sm); color: var(--color-text-primary); }
+    .empty-desc  { font-size: 14px; line-height: 1.7; }
+    .empty-example {
+      display: inline-block;
+      margin-top: var(--space-md);
+      padding: var(--space-sm) var(--space-md);
+      background: #fff;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--color-primary);
+      text-align: left;
+    }
+
+    /* --- Toast --- */
+    .toast-container {
+      position: fixed;
+      bottom: var(--space-lg);
+      right: var(--space-lg);
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    .toast {
+      background: var(--color-text-primary);
+      color: #fff;
+      padding: var(--space-sm) var(--space-md);
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 600;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+      animation: slideUp 0.25s ease;
+      max-width: 280px;
+    }
+
+    .toast.success { background: var(--color-success); }
+    .toast.error   { background: var(--color-error); }
+    .toast.warning { background: var(--color-warning); color: #fff; }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* --- Responsive --- */
+    @media (max-width: 480px) {
+      .main { padding: var(--space-md); }
+      .header { padding: var(--space-sm) var(--space-md); }
+      .summary-bar { padding: var(--space-sm) var(--space-md); gap: var(--space-md); }
+      .grid { grid-template-columns: 1fr; }
+      .timer-elapsed { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-left">
+    <div class="header-logo">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <rect x="2" y="3" width="8" height="8" rx="1.5"/>
+        <rect x="14" y="3" width="8" height="8" rx="1.5" opacity="0.6"/>
+        <rect x="2" y="13" width="8" height="8" rx="1.5" opacity="0.6"/>
+        <rect x="14" y="13" width="8" height="8" rx="1.5" opacity="0.4"/>
+      </svg>
+    </div>
+    <div>
+      <div class="header-title">Parallel Agent Monitor</div>
+      <div class="header-subtitle">Claude Code parallel task tracker</div>
+    </div>
+  </div>
+  <button class="btn btn-ghost btn-sm" id="clearAllBtn" title="全タスクを削除">Clear All</button>
+</header>
+
+<!-- Summary Bar -->
+<div class="summary-bar">
+  <div class="summary-stat">
+    <div class="summary-dot dot-running"></div>
+    <span class="summary-label">Running:</span>
+    <span class="summary-value" id="countRunning">0</span>
+  </div>
+  <div class="summary-stat">
+    <div class="summary-dot dot-overdue"></div>
+    <span class="summary-label">Overdue:</span>
+    <span class="summary-value" id="countOverdue">0</span>
+  </div>
+  <div class="summary-stat">
+    <div class="summary-dot dot-done"></div>
+    <span class="summary-label">Done:</span>
+    <span class="summary-value" id="countDone">0</span>
+  </div>
+  <div class="summary-stat">
+    <div class="summary-dot dot-failed"></div>
+    <span class="summary-label">Failed:</span>
+    <span class="summary-value" id="countFailed">0</span>
+  </div>
+  <div class="summary-stat" style="margin-left:auto;">
+    <span class="summary-label">Longest:</span>
+    <span class="summary-value" id="longestElapsed" style="color:var(--color-primary)">—</span>
+  </div>
+</div>
+
+<!-- Main -->
+<main class="main">
+
+  <!-- Add Task Form -->
+  <div class="form-card">
+    <div class="form-card-title">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6C63FF" stroke-width="2.5" stroke-linecap="round">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+      </svg>
+      タスクを追加
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="taskName">タスク名</label>
+        <input class="input" id="taskName" type="text" placeholder="例: screener / second_opinion / notion_push" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="startTime">開始時刻</label>
+        <input class="input" id="startTime" type="time">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="estMinutes">想定時間 (分)</label>
+        <input class="input" id="estMinutes" type="number" min="1" max="999" placeholder="10" style="font-family:var(--font-mono);">
+      </div>
+      <button class="btn btn-primary" id="addTaskBtn">追加</button>
+    </div>
+
+    <!-- JSON Import -->
+    <div class="import-row">
+      <textarea class="import-textarea" id="importJson" placeholder='JSON一括インポート&#10;[{"name":"screener","start":"14:30","est":5},{"name":"second_opinion","start":"14:31","est":8}]'></textarea>
+      <div style="display:flex;flex-direction:column;gap:var(--space-sm);justify-content:flex-end;">
+        <button class="btn btn-secondary btn-sm" id="importBtn">JSON Import</button>
+        <button class="btn btn-ghost btn-sm" id="exportBtn">JSON Export</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Task List -->
+  <div class="tasks-header">
+    <div class="tasks-title">ACTIVE TASKS</div>
+    <div class="tasks-actions">
+      <button class="btn btn-ghost btn-sm" id="completeAllBtn">全完了</button>
+    </div>
+  </div>
+
+  <div class="grid" id="taskGrid">
+    <!-- empty state -->
+    <div class="empty-state" id="emptyState" style="grid-column:1/-1;">
+      <div class="empty-icon">
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#CCCCDD" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+        </svg>
+      </div>
+      <div class="empty-title">エージェントがいません</div>
+      <div class="empty-desc">並列タスクを上のフォームで追加するか、<br>JSONをインポートして開始してください。</div>
+      <div class="empty-example">[{"name":"screener","start":"14:30","est":5},<br>{"name":"notion_push","start":"14:31","est":3}]</div>
+    </div>
+  </div>
+</main>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+  // ---- State ----
+  const STORAGE_KEY = 'pam_tasks_v2';
+  let tasks = [];
+  let tickTimer = null;
+
+  // ---- Storage ----
+  function loadTasks() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      tasks = raw ? JSON.parse(raw) : [];
+    } catch(e) {
+      tasks = [];
+    }
+  }
+
+  function saveTasks() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); } catch(e) {}
+  }
+
+  // ---- Helpers ----
+  function genId() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  }
+
+  function todayDateStr() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  // Parse "HH:MM" to today's Date object (ms)
+  function parseTimeToMs(timeStr) {
+    if (!timeStr) return Date.now();
+    const [h, m] = timeStr.split(':').map(Number);
+    const d = new Date();
+    d.setHours(h, m, 0, 0);
+    return d.getTime();
+  }
+
+  function msToHHMMSS(ms) {
+    if (ms < 0) ms = 0;
+    const s = Math.floor(ms / 1000);
+    const h = Math.floor(s / 3600);
+    const min = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (h > 0) {
+      return `${h}:${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+    }
+    return `${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+  }
+
+  function getStatus(task) {
+    if (task.status === 'done')   return 'done';
+    if (task.status === 'failed') return 'failed';
+    const now = task.endMs || Date.now();
+    const elapsed = now - task.startMs;
+    const est = (task.estMinutes || 0) * 60000;
+    if (!est) return 'running';
+    const ratio = elapsed / est;
+    if (ratio >= 2.0) return 'critical';
+    if (ratio >= 1.0) return 'overdue';
+    return 'running';
+  }
+
+  function getStatusLabel(status) {
+    const map = { running:'RUNNING', done:'DONE', failed:'FAILED', overdue:'OVERDUE', critical:'CRITICAL' };
+    return map[status] || status.toUpperCase();
+  }
+
+  function getProgressPct(task) {
+    if (task.status === 'done' || task.status === 'failed') return 100;
+    const elapsed = Date.now() - task.startMs;
+    const est = (task.estMinutes || 0) * 60000;
+    if (!est) return null;
+    return Math.min(Math.round(elapsed / est * 100), 200);
+  }
+
+  function progressColor(pct, status) {
+    if (status === 'done')    return '#00D4AA';
+    if (status === 'failed')  return '#FF5252';
+    if (status === 'critical') return '#FF5252';
+    if (status === 'overdue') return '#FBA32A';
+    if (pct >= 80)            return '#FBA32A';
+    return '#6C63FF';
+  }
+
+  // ---- Add Task ----
+  function addTask(name, timeStr, estMinutes) {
+    if (!name.trim()) return showToast('タスク名を入力してください', 'error');
+    const startMs = timeStr ? parseTimeToMs(timeStr) : Date.now();
+    tasks.push({
+      id:         genId(),
+      name:       name.trim(),
+      startMs,
+      estMinutes: parseInt(estMinutes) || 0,
+      status:     'running',
+      endMs:      null,
+    });
+    saveTasks();
+    render();
+    showToast(`"${name.trim()}" を追加しました`, 'success');
+  }
+
+  // ---- JSON Import ----
+  function importJson(raw) {
+    let arr;
+    try { arr = JSON.parse(raw.trim()); } catch(e) { return showToast('JSON形式が不正です', 'error'); }
+    if (!Array.isArray(arr)) return showToast('配列形式で入力してください', 'error');
+    let added = 0;
+    for (const item of arr) {
+      if (!item.name) continue;
+      tasks.push({
+        id:         genId(),
+        name:       String(item.name).trim(),
+        startMs:    item.start ? parseTimeToMs(item.start) : Date.now(),
+        estMinutes: parseInt(item.est || item.estMinutes) || 0,
+        status:     item.status || 'running',
+        endMs:      null,
+      });
+      added++;
+    }
+    if (!added) return showToast('有効なタスクがありませんでした', 'warning');
+    saveTasks();
+    render();
+    showToast(`${added}件のタスクをインポートしました`, 'success');
+  }
+
+  // ---- JSON Export ----
+  function exportJson() {
+    const data = tasks.map(t => ({
+      name: t.name,
+      start: new Date(t.startMs).toTimeString().slice(0,5),
+      est: t.estMinutes,
+      status: t.status,
+    }));
+    const str = JSON.stringify(data, null, 2);
+    navigator.clipboard.writeText(str)
+      .then(() => showToast('クリップボードにコピーしました', 'success'))
+      .catch(() => showToast('コピー失敗 — 手動でコピーしてください', 'error'));
+    return str;
+  }
+
+  // ---- Task Actions ----
+  function markDone(id) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    t.status = 'done';
+    t.endMs = Date.now();
+    saveTasks();
+    render();
+  }
+
+  function markFailed(id) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    t.status = 'failed';
+    t.endMs = Date.now();
+    saveTasks();
+    render();
+  }
+
+  function deleteTask(id) {
+    tasks = tasks.filter(x => x.id !== id);
+    saveTasks();
+    render();
+  }
+
+  function rerunTask(id) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    t.status = 'running';
+    t.startMs = Date.now();
+    t.endMs = null;
+    saveTasks();
+    render();
+    showToast(`"${t.name}" を再実行します`, 'success');
+  }
+
+  function completeAll() {
+    tasks.filter(t => t.status === 'running').forEach(t => {
+      t.status = 'done';
+      t.endMs = Date.now();
+    });
+    saveTasks();
+    render();
+    showToast('実行中のタスクをすべて完了にしました', 'success');
+  }
+
+  function clearAll() {
+    if (!tasks.length) return;
+    if (!confirm(`全${tasks.length}件のタスクを削除してよろしいですか?`)) return;
+    tasks = [];
+    saveTasks();
+    render();
+    showToast('クリアしました', 'warning');
+  }
+
+  // ---- Render ----
+  function render() {
+    const grid = document.getElementById('taskGrid');
+    const empty = document.getElementById('emptyState');
+
+    // Summary
+    const running = tasks.filter(t => t.status === 'running').length;
+    const overdue = tasks.filter(t => { const s = getStatus(t); return s === 'overdue' || s === 'critical'; }).length;
+    const done    = tasks.filter(t => t.status === 'done').length;
+    const failed  = tasks.filter(t => t.status === 'failed').length;
+
+    document.getElementById('countRunning').textContent = running;
+    document.getElementById('countOverdue').textContent = overdue;
+    document.getElementById('countDone').textContent    = done;
+    document.getElementById('countFailed').textContent  = failed;
+
+    // Longest running
+    const runningTasks = tasks.filter(t => t.status === 'running');
+    if (runningTasks.length) {
+      const maxMs = Math.max(...runningTasks.map(t => Date.now() - t.startMs));
+      document.getElementById('longestElapsed').textContent = msToHHMMSS(maxMs);
+    } else {
+      document.getElementById('longestElapsed').textContent = '—';
+    }
+
+    // Remove old cards (keep empty state)
+    const existing = grid.querySelectorAll('.task-card');
+    existing.forEach(el => el.remove());
+
+    if (!tasks.length) {
+      empty.style.display = '';
+      return;
+    }
+    empty.style.display = 'none';
+
+    // Sort: running/overdue first, then done/failed
+    const order = { critical:0, overdue:1, running:2, failed:3, done:4 };
+    const sorted = [...tasks].sort((a, b) => {
+      const sa = getStatus(a), sb = getStatus(b);
+      return (order[sa] ?? 5) - (order[sb] ?? 5) || b.startMs - a.startMs;
+    });
+
+    for (const task of sorted) {
+      const card = buildCard(task);
+      grid.appendChild(card);
+    }
+  }
+
+  function buildCard(task) {
+    const status  = getStatus(task);
+    const elapsed = task.endMs ? task.endMs - task.startMs : Date.now() - task.startMs;
+    const pct     = getProgressPct(task);
+    const pgColor = progressColor(pct, status);
+    const startStr = new Date(task.startMs).toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit' });
+    const estStr   = task.estMinutes ? `想定: ${task.estMinutes}分` : '想定: —';
+
+    // overtime label
+    let subLabel = estStr;
+    if (task.status === 'running' && task.estMinutes) {
+      const est = task.estMinutes * 60000;
+      if (elapsed > est) {
+        const over = elapsed - est;
+        subLabel = `+${msToHHMMSS(over)} 超過 (${estStr})`;
+      } else {
+        const remain = est - elapsed;
+        subLabel = `残り ${msToHHMMSS(remain)} (${estStr})`;
+      }
+    } else if (task.status === 'done') {
+      subLabel = `完了 (${estStr})`;
+    } else if (task.status === 'failed') {
+      subLabel = `失敗 (${estStr})`;
+    }
+
+    const card = document.createElement('div');
+    card.className = `task-card ${status}`;
+    card.dataset.id = task.id;
+
+    // Determine action buttons
+    const isFinished = task.status === 'done' || task.status === 'failed';
+    const actionBtns = isFinished
+      ? `<button class="icon-btn" title="再実行" onclick="rerunTask('${task.id}')">
+           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+             <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.2"/>
+           </svg>
+         </button>`
+      : `<button class="icon-btn done-btn" title="完了にする" onclick="markDone('${task.id}')">
+           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+             <polyline points="20 6 9 17 4 12"/>
+           </svg>
+         </button>
+         <button class="icon-btn fail-btn" title="失敗にする" onclick="markFailed('${task.id}')">
+           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+           </svg>
+         </button>`;
+
+    const progressBar = pct !== null
+      ? `<div class="progress-wrap">
+           <div class="progress-bar" style="width:${Math.min(pct, 100)}%;background:${pgColor};"></div>
+         </div>`
+      : '';
+
+    card.innerHTML = `
+      <div class="card-top">
+        <div class="task-name">${escHtml(task.name)}</div>
+        <span class="status-badge badge-${status}">${getStatusLabel(status)}</span>
+      </div>
+      <div class="timer-block">
+        <div class="timer-elapsed" id="elapsed-${task.id}">${msToHHMMSS(elapsed)}</div>
+        <div class="timer-sub" id="sub-${task.id}">${subLabel}</div>
+      </div>
+      ${progressBar}
+      <div class="card-footer">
+        <div class="card-meta">
+          開始: ${startStr}<br>
+          ${estStr}
+        </div>
+        <div class="card-actions">
+          ${actionBtns}
+          <button class="icon-btn del-btn" title="削除" onclick="deleteTask('${task.id}')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    `;
+    return card;
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ---- Tick (every second) ----
+  function tick() {
+    const now = Date.now();
+    for (const task of tasks) {
+      if (task.status !== 'running') continue;
+      const elapsed  = now - task.startMs;
+      const el = document.getElementById(`elapsed-${task.id}`);
+      const sub = document.getElementById(`sub-${task.id}`);
+      const card = document.querySelector(`.task-card[data-id="${task.id}"]`);
+      if (!el || !card) continue;
+
+      el.textContent = msToHHMMSS(elapsed);
+
+      const status = getStatus(task);
+      // Update card class if status changed
+      const prevClass = [...card.classList].find(c => ['running','overdue','critical','done','failed'].includes(c));
+      if (prevClass !== status) {
+        card.classList.remove('running','overdue','critical','done','failed');
+        card.classList.add(status);
+        card.querySelector('.status-badge').className = `status-badge badge-${status}`;
+        card.querySelector('.status-badge').textContent = getStatusLabel(status);
+        // Update timer color
+        el.style.color = '';  // reset to CSS class
+
+        // Overdue alert toast (once per status change)
+        if (status === 'overdue') showToast(`"${task.name}" が想定時間を超過しています`, 'warning');
+        if (status === 'critical') showToast(`"${task.name}" が想定の2倍を超過 — 要確認`, 'error');
+      }
+
+      // Update sub-label & progress bar
+      if (sub && task.estMinutes) {
+        const est = task.estMinutes * 60000;
+        if (elapsed > est) {
+          const over = elapsed - est;
+          sub.textContent = `+${msToHHMMSS(over)} 超過 (想定: ${task.estMinutes}分)`;
+        } else {
+          const remain = est - elapsed;
+          sub.textContent = `残り ${msToHHMMSS(remain)} (想定: ${task.estMinutes}分)`;
+        }
+      }
+
+      // Progress bar update
+      const pct = getProgressPct(task);
+      const bar = card.querySelector('.progress-bar');
+      if (bar && pct !== null) {
+        bar.style.width = `${Math.min(pct, 100)}%`;
+        bar.style.background = progressColor(pct, status);
+      }
+    }
+
+    // Update summary counts
+    const running = tasks.filter(t => t.status === 'running').length;
+    const overdue = tasks.filter(t => { const s = getStatus(t); return s === 'overdue' || s === 'critical'; }).length;
+    document.getElementById('countRunning').textContent = running;
+    document.getElementById('countOverdue').textContent = overdue;
+
+    if (running > 0) {
+      const maxMs = Math.max(...tasks.filter(t => t.status === 'running').map(t => now - t.startMs));
+      document.getElementById('longestElapsed').textContent = msToHHMMSS(maxMs);
+    }
+  }
+
+  // ---- Toast ----
+  function showToast(msg, type = '') {
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.textContent = msg;
+    document.getElementById('toastContainer').appendChild(el);
+    setTimeout(() => el.remove(), 3500);
+  }
+
+  // ---- Event Listeners ----
+  document.getElementById('addTaskBtn').addEventListener('click', () => {
+    addTask(
+      document.getElementById('taskName').value,
+      document.getElementById('startTime').value,
+      document.getElementById('estMinutes').value
+    );
+    document.getElementById('taskName').value = '';
+    document.getElementById('estMinutes').value = '';
+  });
+
+  document.getElementById('taskName').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('addTaskBtn').click();
+  });
+
+  document.getElementById('importBtn').addEventListener('click', () => {
+    const v = document.getElementById('importJson').value;
+    if (!v.trim()) return showToast('JSONを入力してください', 'error');
+    importJson(v);
+    document.getElementById('importJson').value = '';
+  });
+
+  document.getElementById('exportBtn').addEventListener('click', exportJson);
+  document.getElementById('completeAllBtn').addEventListener('click', completeAll);
+  document.getElementById('clearAllBtn').addEventListener('click', clearAll);
+
+  // Set default start time to now
+  function setDefaultTime() {
+    const now = new Date();
+    document.getElementById('startTime').value =
+      `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  }
+
+  // ---- Init ----
+  loadTasks();
+  setDefaultTime();
+  render();
+  tickTimer = setInterval(tick, 1000);
+</script>
+</body>
+</html>
