@@ -16,35 +16,40 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     /* ============================
-       CSS Variables — Mode B: The Row
+       CSS Variables — Mode C: GQ Dark (Developer Edition)
        ============================ */
     :root {
-      --paper:   #F5F4F0;
-      --ink:     #1C1C1C;
-      --tan:     #C8B89E;
-      --stone:   #6B6B66;
-      --coffee:  #8B6F47;
+      /* GQ Night palette from DESIGN.md */
+      --gq-night:    #0F1729;
+      --gq-surface:  #151E33;   /* card / modal surface — 1 step lighter than night */
+      --gq-border:   #1E2A42;   /* subtle border */
+      --gq-lift:     #242F47;   /* hover lift / input bg */
+      --gq-gold:     #D4AF37;   /* accent — used sparingly */
 
-      /* Ink Scale */
-      --ink-1: #0A0A0A;
-      --ink-2: #374151;
-      --ink-3: #6B7280;
-      --ink-4: #9CA3AF;
-      --ink-5: #E5E7EB;
+      /* Legacy aliases (kept for compatibility with all CSS rules below) */
+      --paper:   #0F1729;
+      --ink:     #E8EAED;
 
-      /* Status Colors */
-      --status-pending:  #9CA3AF;
-      --status-running:  #6C63FF;
+      /* Ink Scale — inverted for dark */
+      --ink-1: #E8EAED;         /* primary text — softer than pure white */
+      --ink-2: #C0C7D6;         /* secondary text */
+      --ink-3: #8B94A8;         /* tertiary / muted */
+      --ink-4: #5A6478;         /* disabled / placeholder */
+      --ink-5: #1E2A42;         /* borders / dividers */
+
+      /* Status Colors — vivid enough on dark bg */
+      --status-pending:  #6B7280;
+      --status-running:  #7C6FFF;   /* slightly brighter violet for dark */
       --status-done:     #00D4AA;
       --status-error:    #FF5252;
       --status-paused:   #FBA32A;
 
-      /* Status BG (dim) */
-      --status-pending-bg:  rgba(156,163,175,0.10);
-      --status-running-bg:  rgba(108,99,255,0.10);
-      --status-done-bg:     rgba(0,212,170,0.10);
-      --status-error-bg:    rgba(255,82,82,0.10);
-      --status-paused-bg:   rgba(251,163,42,0.10);
+      /* Status BG (dim) — more opaque on dark */
+      --status-pending-bg:  rgba(107,114,128,0.15);
+      --status-running-bg:  rgba(124,111,255,0.15);
+      --status-done-bg:     rgba(0,212,170,0.12);
+      --status-error-bg:    rgba(255,82,82,0.12);
+      --status-paused-bg:   rgba(251,163,42,0.12);
 
       /* Spacing — 8px grid */
       --sp-xs:  4px;
@@ -68,7 +73,7 @@
 
     body {
       font-family: var(--font-sans);
-      background: var(--paper);
+      background: var(--gq-night);
       color: var(--ink-1);
       min-height: 100vh;
       line-height: 1.6;
@@ -98,7 +103,9 @@
       padding: var(--sp-md) 0;
       position: sticky;
       top: 0;
-      background: var(--paper);
+      background: rgba(15, 23, 41, 0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       z-index: 100;
     }
 
@@ -143,7 +150,7 @@
        ============================ */
     .summary-bar {
       border-bottom: 1px solid var(--ink-5);
-      background: rgba(255,255,255,0.6);
+      background: var(--gq-surface);
     }
 
     .summary-inner {
@@ -262,11 +269,11 @@
       height: 44px;
       padding: 0 var(--sp-md);
       border-radius: 4px;
-      border: 1.5px solid var(--ink-5);
+      border: 1.5px solid var(--gq-border);
       font-size: 14px;
       font-family: var(--font-sans);
       color: var(--ink-1);
-      background: #fff;
+      background: var(--gq-lift);
       transition: border-color 0.15s;
       outline: none;
       appearance: none;
@@ -275,8 +282,8 @@
 
     .form-input:focus,
     .form-select:focus {
-      border-color: var(--ink-1);
-      box-shadow: 0 0 0 3px rgba(28,28,28,0.08);
+      border-color: var(--status-running);
+      box-shadow: 0 0 0 3px rgba(124,111,255,0.15);
     }
 
     .form-input::placeholder {
@@ -297,7 +304,7 @@
     .btn-primary-pro {
       height: 44px;
       padding: 0 var(--sp-xl);
-      background: var(--ink-1);
+      background: var(--status-running);
       color: #fff;
       border: none;
       border-radius: 4px;
@@ -307,13 +314,16 @@
       letter-spacing: 0.08em;
       text-transform: uppercase;
       cursor: pointer;
-      transition: background 0.15s;
+      transition: background 0.15s, box-shadow 0.15s;
       white-space: nowrap;
       display: inline-flex;
       align-items: center;
       gap: var(--sp-sm);
     }
-    .btn-primary-pro:hover { background: var(--ink-2); }
+    .btn-primary-pro:hover {
+      background: #6056e8;
+      box-shadow: 0 0 16px rgba(124,111,255,0.35);
+    }
     .btn-primary-pro:active { transform: scale(0.98); }
 
     .btn-ghost {
@@ -321,7 +331,7 @@
       padding: 0 var(--sp-md);
       background: transparent;
       color: var(--ink-3);
-      border: 1px solid var(--ink-5);
+      border: 1px solid var(--gq-border);
       border-radius: 4px;
       font-size: 11px;
       font-family: var(--font-mono);
@@ -337,6 +347,7 @@
     .btn-ghost:hover {
       border-color: var(--ink-3);
       color: var(--ink-1);
+      background: var(--gq-lift);
     }
 
     .btn-icon {
@@ -407,7 +418,7 @@
        Agent Card
        ============================ */
     .agent-card {
-      background: #fff;
+      background: var(--gq-surface);
       border-radius: 4px;
       border: 1px solid var(--ink-5);
       padding: var(--sp-lg);
@@ -436,7 +447,7 @@
     .agent-card.status-paused::before   { background: var(--status-paused); }
 
     .agent-card:hover {
-      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.4);
       transform: translateY(-1px);
     }
 
@@ -585,7 +596,7 @@
       height: 32px;
       padding: 0 var(--sp-md);
       border-radius: 4px;
-      border: 1px solid var(--ink-5);
+      border: 1px solid var(--gq-border);
       background: transparent;
       font-size: 11px;
       font-family: var(--font-mono);
@@ -602,7 +613,7 @@
 
     .action-btn:hover {
       border-color: var(--ink-3);
-      background: var(--paper);
+      background: var(--gq-lift);
     }
 
     .action-btn.start   { color: var(--status-running); border-color: rgba(108,99,255,0.3); }
@@ -644,11 +655,11 @@
       min-height: 120px;
       padding: var(--sp-md);
       border-radius: 4px;
-      border: 1.5px solid var(--ink-5);
+      border: 1.5px solid var(--gq-border);
       font-size: 12px;
       font-family: var(--font-mono);
       color: var(--ink-2);
-      background: #fff;
+      background: var(--gq-lift);
       resize: vertical;
       transition: border-color 0.15s;
       outline: none;
@@ -656,8 +667,8 @@
     }
 
     .form-textarea:focus {
-      border-color: var(--ink-1);
-      box-shadow: 0 0 0 3px rgba(28,28,28,0.06);
+      border-color: var(--status-running);
+      box-shadow: 0 0 0 3px rgba(124,111,255,0.15);
     }
 
     .form-textarea::placeholder {
@@ -675,10 +686,11 @@
     .parser-desc code {
       font-family: var(--font-mono);
       font-size: 11px;
-      background: var(--ink-5);
+      background: var(--gq-lift);
+      border: 1px solid var(--gq-border);
       padding: 1px 5px;
       border-radius: 3px;
-      color: var(--ink-2);
+      color: var(--status-running);
     }
 
     /* Toast notification */
@@ -687,8 +699,9 @@
       bottom: var(--sp-xl);
       right: var(--sp-xl);
       padding: var(--sp-md) var(--sp-lg);
-      background: var(--ink-1);
-      color: #fff;
+      background: var(--gq-surface);
+      border: 1px solid var(--gq-border);
+      color: var(--ink-1);
       border-radius: 4px;
       font-family: var(--font-mono);
       font-size: 12px;
@@ -699,6 +712,7 @@
       transition: all 0.25s ease;
       pointer-events: none;
       max-width: 300px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
     }
 
     .toast.show {
@@ -753,12 +767,12 @@
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(10,10,10,0.4);
+      background: rgba(5,8,18,0.75);
       z-index: 200;
       align-items: flex-start;
       justify-content: center;
       padding: var(--sp-2xl) var(--sp-md);
-      backdrop-filter: blur(3px);
+      backdrop-filter: blur(6px);
     }
 
     .modal-overlay.active {
@@ -766,13 +780,13 @@
     }
 
     .modal {
-      background: var(--paper);
+      background: var(--gq-surface);
       border-radius: 4px;
-      border: 1px solid var(--ink-5);
+      border: 1px solid var(--gq-border);
       width: 100%;
       max-width: 520px;
       padding: var(--sp-xl);
-      box-shadow: 0 16px 48px rgba(0,0,0,0.16);
+      box-shadow: 0 24px 64px rgba(0,0,0,0.6);
       animation: modal-in 0.2s ease;
     }
 
@@ -820,18 +834,18 @@
       height: 44px;
       padding: 0 var(--sp-md);
       border-radius: 4px;
-      border: 1.5px solid var(--ink-5);
+      border: 1.5px solid var(--gq-border);
       font-size: 14px;
       font-family: var(--font-sans);
       color: var(--ink-1);
-      background: #fff;
+      background: var(--gq-lift);
       transition: border-color 0.15s;
       outline: none;
       width: 100%;
     }
     .form-input-full:focus {
-      border-color: var(--ink-1);
-      box-shadow: 0 0 0 3px rgba(28,28,28,0.08);
+      border-color: var(--status-running);
+      box-shadow: 0 0 0 3px rgba(124,111,255,0.15);
     }
     .form-input-full::placeholder { color: var(--ink-4); }
 
@@ -839,11 +853,11 @@
       height: 44px;
       padding: 0 36px 0 var(--sp-md);
       border-radius: 4px;
-      border: 1.5px solid var(--ink-5);
+      border: 1.5px solid var(--gq-border);
       font-size: 14px;
       font-family: var(--font-sans);
       color: var(--ink-1);
-      background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239CA3AF' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 12px center;
+      background: var(--gq-lift) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%235A6478' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 12px center;
       appearance: none;
       -webkit-appearance: none;
       outline: none;
@@ -852,8 +866,8 @@
       width: 100%;
     }
     .form-select-full:focus {
-      border-color: var(--ink-1);
-      box-shadow: 0 0 0 3px rgba(28,28,28,0.08);
+      border-color: var(--status-running);
+      box-shadow: 0 0 0 3px rgba(124,111,255,0.15);
     }
 
     .form-row {
@@ -870,7 +884,8 @@
        Running glow animation
        ============================ */
     .agent-card.status-running {
-      border-color: rgba(108,99,255,0.25);
+      border-color: rgba(124,111,255,0.35);
+      box-shadow: 0 0 0 1px rgba(124,111,255,0.12) inset;
     }
 
     /* ============================
@@ -881,7 +896,7 @@
       padding: 0 var(--sp-md);
       background: transparent;
       color: var(--status-error);
-      border: 1px solid rgba(255,82,82,0.3);
+      border: 1px solid rgba(255,82,82,0.25);
       border-radius: 4px;
       font-size: 11px;
       font-family: var(--font-mono);
@@ -892,7 +907,7 @@
       white-space: nowrap;
     }
     .btn-clear:hover {
-      background: var(--status-error-bg);
+      background: rgba(255,82,82,0.1);
       border-color: var(--status-error);
     }
 
