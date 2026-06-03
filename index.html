@@ -3,1287 +3,1696 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Parallel Agent Monitor</title>
-  <meta name="description" content="Claude Code で並列実行中のエージェントを一覧管理。経過時間・超過アラート・完了マークをリアルタイム表示。">
+  <title>Parallel Agent Monitor | チームてちお</title>
+  <meta name="description" content="Claude Code の並列エージェント（Task / bg agent）の進捗をブラウザだけで可視化。サーバー不要・セットアップ10秒。個人開発者向け最小実装。">
   <meta property="og:title" content="Parallel Agent Monitor">
-  <meta property="og:description" content="Claude Code で並列実行中のエージェントをリアルタイム可視化。経過時間・超過アラート・完了マークを一覧表示。">
+  <meta property="og:description" content="並列AIエージェントの進捗をリアルタイム可視化。GitHub Pages完結・サーバー不要。">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://techio-code.github.io/parallel-agent-monitor/">
   <meta property="og:image" content="https://techio-code.github.io/parallel-agent-monitor/ogp.png">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
-    /* ===== Design Tokens — Dark Dashboard ===== */
+    /* ============================
+       CSS Variables — Mode B: The Row
+       ============================ */
     :root {
-      /* Surface */
-      --bg-base:       #0d0d14;
-      --bg-sidebar:    #111118;
-      --bg-card:       #16161f;
-      --bg-card-hover: #1c1c27;
-      --bg-input:      #1a1a24;
-      --bg-stats:      #111118;
+      --paper:   #F5F4F0;
+      --ink:     #1C1C1C;
+      --tan:     #C8B89E;
+      --stone:   #6B6B66;
+      --coffee:  #8B6F47;
 
-      /* Border */
-      --border:        rgba(255,255,255,0.07);
-      --border-strong: rgba(255,255,255,0.12);
+      /* Ink Scale */
+      --ink-1: #0A0A0A;
+      --ink-2: #374151;
+      --ink-3: #6B7280;
+      --ink-4: #9CA3AF;
+      --ink-5: #E5E7EB;
 
-      /* Brand */
-      --primary:       #7c6fff;
-      --primary-dim:   rgba(124,111,255,0.15);
-      --accent:        #00cfaa;
-      --accent-dim:    rgba(0,207,170,0.15);
-      --warning:       #f5a623;
-      --warning-dim:   rgba(245,166,35,0.15);
-      --error:         #ff5c5c;
-      --error-dim:     rgba(255,92,92,0.15);
+      /* Status Colors */
+      --status-pending:  #9CA3AF;
+      --status-running:  #6C63FF;
+      --status-done:     #00D4AA;
+      --status-error:    #FF5252;
+      --status-paused:   #FBA32A;
 
-      /* Text */
-      --text-primary:  rgba(255,255,255,0.9);
-      --text-secondary:rgba(255,255,255,0.45);
-      --text-muted:    rgba(255,255,255,0.25);
+      /* Status BG (dim) */
+      --status-pending-bg:  rgba(156,163,175,0.10);
+      --status-running-bg:  rgba(108,99,255,0.10);
+      --status-done-bg:     rgba(0,212,170,0.10);
+      --status-error-bg:    rgba(255,82,82,0.10);
+      --status-paused-bg:   rgba(251,163,42,0.10);
 
-      /* Typography */
-      --font-sans: 'Inter', 'Noto Sans JP', sans-serif;
-      --font-mono: 'JetBrains Mono', monospace;
-
-      /* Spacing */
+      /* Spacing — 8px grid */
       --sp-xs:  4px;
       --sp-sm:  8px;
       --sp-md:  16px;
       --sp-lg:  24px;
       --sp-xl:  32px;
+      --sp-2xl: 48px;
+      --sp-3xl: 64px;
 
-      /* Sidebar */
-      --sidebar-w: 220px;
+      /* Typography */
+      --font-sans: 'Noto Sans JP', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
     }
 
+    /* ============================
+       Reset & Base
+       ============================ */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
 
     body {
       font-family: var(--font-sans);
-      background: var(--bg-base);
-      color: var(--text-primary);
+      background: var(--paper);
+      color: var(--ink-1);
       min-height: 100vh;
-      display: flex;
-      overflow-x: hidden;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
     }
 
-    /* ===== Sidebar ===== */
-    .sidebar {
-      width: var(--sidebar-w);
+    /* ============================
+       Layout
+       ============================ */
+    .app-shell {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
       min-height: 100vh;
-      background: var(--bg-sidebar);
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      flex-shrink: 0;
-      position: fixed;
+    }
+
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0 var(--sp-lg);
+    }
+
+    /* ============================
+       Header
+       ============================ */
+    .site-header {
+      border-bottom: 1px solid var(--ink-5);
+      padding: var(--sp-md) 0;
+      position: sticky;
       top: 0;
-      left: 0;
-      z-index: 50;
+      background: var(--paper);
+      z-index: 100;
     }
 
-    .sidebar-brand {
+    .header-inner {
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 20px 18px 16px;
-      border-bottom: 1px solid var(--border);
+      justify-content: space-between;
+      gap: var(--sp-md);
     }
 
-    .brand-icon {
-      width: 30px;
-      height: 30px;
-      background: var(--primary);
-      border-radius: 7px;
+    .header-brand {
       display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
+      align-items: baseline;
+      gap: var(--sp-sm);
     }
 
-    .brand-icon svg { width: 16px; height: 16px; fill: #fff; }
-
-    .brand-name {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--text-primary);
-      letter-spacing: 0.03em;
-      line-height: 1.3;
-    }
-
-    .brand-sub {
-      font-size: 10px;
-      color: var(--text-muted);
+    .header-title {
       font-family: var(--font-mono);
-      letter-spacing: 0.1em;
-    }
-
-    .sidebar-section {
-      padding: 18px 12px 8px;
-    }
-
-    .sidebar-section-label {
-      font-family: var(--font-mono);
-      font-size: 9px;
-      letter-spacing: 0.2em;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      padding: 0 6px;
-      margin-bottom: 6px;
-    }
-
-    .nav-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 8px 10px;
-      border-radius: 6px;
-      font-size: 13px;
+      font-size: 14px;
       font-weight: 500;
-      color: var(--text-secondary);
-      cursor: pointer;
-      transition: all 0.15s;
-      user-select: none;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--ink-1);
     }
 
-    .nav-item:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }
-
-    .nav-item.active {
-      background: var(--primary-dim);
-      color: var(--primary);
-    }
-
-    .nav-item svg { flex-shrink: 0; opacity: 0.7; }
-    .nav-item.active svg { opacity: 1; }
-
-    .nav-badge {
-      margin-left: auto;
+    .header-label {
       font-family: var(--font-mono);
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--text-muted);
-      background: rgba(255,255,255,0.06);
-      padding: 1px 6px;
-      border-radius: 100px;
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--ink-4);
     }
 
-    .nav-item.active .nav-badge {
-      background: rgba(124,111,255,0.2);
-      color: var(--primary);
-    }
-
-    .sidebar-spacer { flex: 1; }
-
-    .sidebar-footer {
-      padding: 14px 12px;
-      border-top: 1px solid var(--border);
-    }
-
-    .sidebar-status {
+    .header-actions {
       display: flex;
       align-items: center;
-      gap: 7px;
-      font-size: 11px;
-      color: var(--text-muted);
-      font-family: var(--font-mono);
+      gap: var(--sp-sm);
     }
 
-    .status-dot-live {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--accent);
-      flex-shrink: 0;
-      animation: blink 2s ease-in-out infinite;
+    /* ============================
+       Summary Bar
+       ============================ */
+    .summary-bar {
+      border-bottom: 1px solid var(--ink-5);
+      background: rgba(255,255,255,0.6);
     }
 
-    @keyframes blink {
-      0%, 100% { opacity: 1; }
-      50%       { opacity: 0.3; }
-    }
-
-    /* ===== Main Layout ===== */
-    .layout {
-      margin-left: var(--sidebar-w);
-      flex: 1;
+    .summary-inner {
       display: flex;
-      flex-direction: column;
-      min-width: 0;
-    }
-
-    /* ===== Top Stats Bar ===== */
-    .stats-bar {
-      background: var(--bg-stats);
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      flex-wrap: nowrap;
       overflow-x: auto;
-      flex-shrink: 0;
+      scrollbar-width: none;
     }
+    .summary-inner::-webkit-scrollbar { display: none; }
 
     .stat-item {
       flex: 1;
-      min-width: 110px;
-      padding: 18px 24px;
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
+      min-width: 100px;
+      padding: var(--sp-md) var(--sp-lg);
+      border-right: 1px solid var(--ink-5);
+      text-align: center;
     }
-
     .stat-item:last-child { border-right: none; }
+
+    .stat-value {
+      font-family: var(--font-mono);
+      font-size: 24px;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      color: var(--ink-1);
+      display: block;
+    }
 
     .stat-label {
       font-family: var(--font-mono);
       font-size: 10px;
-      letter-spacing: 0.16em;
+      letter-spacing: 0.15em;
       text-transform: uppercase;
-      color: var(--text-muted);
+      color: var(--ink-4);
+      display: block;
+      margin-top: var(--sp-xs);
     }
 
-    .stat-value {
-      font-family: var(--font-mono);
-      font-size: 30px;
-      font-weight: 600;
-      line-height: 1;
-      letter-spacing: -0.02em;
+    .stat-item.running .stat-value { color: var(--status-running); }
+    .stat-item.done .stat-value { color: var(--status-done); }
+    .stat-item.error .stat-value { color: var(--status-error); }
+
+    /* ============================
+       Main Content
+       ============================ */
+    .main-content {
+      padding: var(--sp-2xl) 0;
     }
 
-    .stat-value.running  { color: var(--primary); }
-    .stat-value.overdue  { color: var(--warning); }
-    .stat-value.done     { color: var(--accent); }
-    .stat-value.failed   { color: var(--error); }
-    .stat-value.longest  { color: var(--text-secondary); }
-
-    .stat-trend {
-      font-size: 11px;
-      color: var(--text-muted);
-      font-family: var(--font-mono);
-    }
-
-    /* ===== Content Area ===== */
-    .content {
-      flex: 1;
-      padding: 28px 32px 48px;
-      display: flex;
-      flex-direction: column;
-      gap: 24px;
-    }
-
-    /* ===== Section Header ===== */
+    /* ============================
+       Section Headers
+       ============================ */
     .section-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: var(--sp-sm);
-      flex-wrap: wrap;
+      margin-bottom: var(--sp-xl);
+      padding-bottom: var(--sp-md);
+      border-bottom: 1px solid var(--ink-5);
+    }
+
+    .section-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--ink-4);
+      margin-bottom: var(--sp-xs);
     }
 
     .section-title {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--ink-1);
+    }
+
+    /* ============================
+       Add Task Form
+       ============================ */
+    .add-task-section {
+      margin-bottom: var(--sp-3xl);
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr auto auto auto;
+      gap: var(--sp-sm);
+      align-items: end;
+    }
+
+    @media (max-width: 640px) {
+      .form-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+      .form-grid .btn-primary-pro {
+        grid-column: 1 / -1;
+      }
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-xs);
+    }
+
+    .form-label {
       font-family: var(--font-mono);
       font-size: 10px;
-      font-weight: 500;
-      letter-spacing: 0.2em;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
-      color: var(--text-muted);
+      color: var(--ink-4);
     }
 
-    .section-actions { display: flex; gap: var(--sp-sm); }
+    .form-input,
+    .form-select {
+      height: 44px;
+      padding: 0 var(--sp-md);
+      border-radius: 4px;
+      border: 1.5px solid var(--ink-5);
+      font-size: 14px;
+      font-family: var(--font-sans);
+      color: var(--ink-1);
+      background: #fff;
+      transition: border-color 0.15s;
+      outline: none;
+      appearance: none;
+      -webkit-appearance: none;
+    }
 
-    /* ===== Task Grid ===== */
-    .task-grid {
+    .form-input:focus,
+    .form-select:focus {
+      border-color: var(--ink-1);
+      box-shadow: 0 0 0 3px rgba(28,28,28,0.08);
+    }
+
+    .form-input::placeholder {
+      color: var(--ink-4);
+    }
+
+    .form-select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239CA3AF' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 36px;
+      cursor: pointer;
+    }
+
+    /* ============================
+       Buttons
+       ============================ */
+    .btn-primary-pro {
+      height: 44px;
+      padding: 0 var(--sp-xl);
+      background: var(--ink-1);
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sp-sm);
+    }
+    .btn-primary-pro:hover { background: var(--ink-2); }
+    .btn-primary-pro:active { transform: scale(0.98); }
+
+    .btn-ghost {
+      height: 36px;
+      padding: 0 var(--sp-md);
+      background: transparent;
+      color: var(--ink-3);
+      border: 1px solid var(--ink-5);
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-ghost:hover {
+      border-color: var(--ink-3);
+      color: var(--ink-1);
+    }
+
+    .btn-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 4px;
+      border: none;
+      background: transparent;
+      color: var(--ink-4);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+      font-size: 12px;
+    }
+    .btn-icon:hover {
+      background: var(--ink-5);
+      color: var(--ink-1);
+    }
+
+    /* ============================
+       Agent Cards Board
+       ============================ */
+    .board-section { }
+
+    .agent-board {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 14px;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: var(--sp-lg);
     }
 
-    /* ===== Task Card ===== */
-    .task-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-left: 3px solid transparent;
-      border-radius: 8px;
-      padding: 18px;
-      transition: background 0.15s, border-color 0.15s;
+    @media (max-width: 480px) {
+      .agent-board {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .empty-state {
+      grid-column: 1 / -1;
+      padding: var(--sp-3xl);
+      text-align: center;
+      border: 1px dashed var(--ink-5);
+      border-radius: 4px;
+    }
+
+    .empty-icon {
+      font-family: var(--font-mono);
+      font-size: 32px;
+      color: var(--ink-5);
+      margin-bottom: var(--sp-md);
+    }
+
+    .empty-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--ink-3);
+      margin-bottom: var(--sp-sm);
+    }
+
+    .empty-desc {
+      font-size: 13px;
+      color: var(--ink-4);
+      line-height: 1.7;
+    }
+
+    /* ============================
+       Agent Card
+       ============================ */
+    .agent-card {
+      background: #fff;
+      border-radius: 4px;
+      border: 1px solid var(--ink-5);
+      padding: var(--sp-lg);
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-md);
+      transition: box-shadow 0.2s, transform 0.2s;
       position: relative;
       overflow: hidden;
     }
 
-    .task-card:hover { background: var(--bg-card-hover); }
-
-    .task-card.running  { border-left-color: var(--primary); }
-    .task-card.overdue  { border-left-color: var(--warning); }
-    .task-card.critical { border-left-color: var(--error); }
-    .task-card.done     { border-left-color: var(--accent); opacity: 0.75; }
-    .task-card.failed   { border-left-color: var(--error); opacity: 0.75; }
-
-    /* Running pulse line */
-    .task-card.running::before {
+    .agent-card::before {
       content: '';
       position: absolute;
-      top: 0; right: 0;
-      width: 2px;
-      height: 100%;
-      background: var(--primary);
-      animation: card-pulse 1.8s ease-in-out infinite;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      border-radius: 4px 4px 0 0;
     }
 
-    @keyframes card-pulse {
-      0%, 100% { opacity: 0.2; }
-      50%       { opacity: 0.8; }
+    .agent-card.status-pending::before  { background: var(--status-pending); }
+    .agent-card.status-running::before  { background: var(--status-running); }
+    .agent-card.status-done::before     { background: var(--status-done); }
+    .agent-card.status-error::before    { background: var(--status-error); }
+    .agent-card.status-paused::before   { background: var(--status-paused); }
+
+    .agent-card:hover {
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+      transform: translateY(-1px);
+    }
+
+    .agent-card.status-done {
+      opacity: 0.85;
     }
 
     /* Card Top Row */
-    .card-head {
+    .card-top {
       display: flex;
       align-items: flex-start;
-      justify-content: space-between;
-      gap: var(--sp-sm);
-      margin-bottom: 14px;
-    }
-
-    .card-name {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text-primary);
-      word-break: break-word;
-      line-height: 1.4;
-      flex: 1;
-    }
-
-    /* Status Badge */
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      height: 20px;
-      padding: 0 8px;
-      border-radius: 100px;
-      font-family: var(--font-mono);
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: 0.06em;
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-
-    .badge-running  { background: var(--primary-dim); color: var(--primary); }
-    .badge-done     { background: var(--accent-dim);  color: var(--accent); }
-    .badge-failed   { background: var(--error-dim);   color: var(--error); }
-    .badge-overdue  { background: var(--warning-dim); color: var(--warning); }
-    .badge-critical { background: var(--error-dim);   color: var(--error); }
-
-    /* Timer */
-    .card-timer {
-      margin-bottom: 14px;
-    }
-
-    .timer-elapsed {
-      font-family: var(--font-mono);
-      font-size: 26px;
-      font-weight: 600;
-      line-height: 1;
-      letter-spacing: 0.02em;
-      color: var(--text-primary);
-    }
-
-    .task-card.done     .timer-elapsed { color: var(--accent); }
-    .task-card.failed   .timer-elapsed { color: var(--error); }
-    .task-card.overdue  .timer-elapsed { color: var(--warning); }
-    .task-card.critical .timer-elapsed { color: var(--error); }
-
-    .timer-sub {
-      font-family: var(--font-mono);
-      font-size: 11px;
-      color: var(--text-secondary);
-      margin-top: 4px;
-    }
-
-    /* Progress Bar */
-    .progress-track {
-      background: rgba(255,255,255,0.07);
-      border-radius: 100px;
-      height: 5px;
-      margin-bottom: 14px;
-      overflow: hidden;
-    }
-
-    .progress-fill {
-      height: 100%;
-      border-radius: 100px;
-      transition: width 1s linear, background 0.5s;
-    }
-
-    /* Card Footer */
-    .card-foot {
-      display: flex;
-      align-items: center;
       justify-content: space-between;
       gap: var(--sp-sm);
     }
 
     .card-meta {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      color: var(--text-muted);
-      line-height: 1.6;
-    }
-
-    .card-actions { display: flex; gap: 5px; }
-
-    .icon-btn {
-      width: 30px;
-      height: 30px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: transparent;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--text-muted);
-      transition: all 0.15s;
-    }
-
-    .icon-btn:hover { border-color: var(--border-strong); color: var(--text-secondary); background: rgba(255,255,255,0.05); }
-    .icon-btn.done-btn:hover  { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
-    .icon-btn.fail-btn:hover  { border-color: var(--error);  color: var(--error);  background: var(--error-dim); }
-    .icon-btn.del-btn:hover   { border-color: var(--error);  color: var(--error);  background: var(--error-dim); }
-
-    /* ===== Empty State ===== */
-    .empty-state {
-      grid-column: 1 / -1;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      padding: 56px 24px;
-      color: var(--text-muted);
-      text-align: center;
+      gap: 4px;
+      flex: 1;
+      min-width: 0;
     }
 
-    .empty-icon { margin-bottom: var(--sp-md); opacity: 0.4; }
-    .empty-title { font-size: 15px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; }
-    .empty-desc  { font-size: 13px; line-height: 1.7; }
-    .empty-hint {
-      margin-top: var(--sp-md);
-      padding: var(--sp-sm) var(--sp-md);
-      background: rgba(255,255,255,0.04);
-      border: 1px solid var(--border);
-      border-radius: 6px;
+    .card-agent-type {
       font-family: var(--font-mono);
-      font-size: 11px;
-      color: var(--primary);
-      text-align: left;
-      line-height: 1.6;
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--ink-4);
     }
 
-    /* ===== Add Task Panel (bottom) ===== */
-    .add-panel {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
+    .card-name {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--ink-1);
+      letter-spacing: -0.01em;
+      white-space: nowrap;
       overflow: hidden;
+      text-overflow: ellipsis;
     }
 
-    .add-panel-header {
-      display: flex;
+    /* Status Badge */
+    .status-badge {
+      display: inline-flex;
       align-items: center;
-      justify-content: space-between;
-      padding: 14px 20px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .add-panel-title {
+      gap: 5px;
+      height: 24px;
+      padding: 0 var(--sp-sm);
+      border-radius: 100px;
       font-family: var(--font-mono);
       font-size: 10px;
       font-weight: 500;
-      letter-spacing: 0.2em;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: var(--text-muted);
-      display: flex;
-      align-items: center;
-      gap: 8px;
+      white-space: nowrap;
     }
 
-    .add-panel-body {
-      padding: 18px 20px;
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    .status-badge.pending  { background: var(--status-pending-bg);  color: var(--status-pending); }
+    .status-badge.running  { background: var(--status-running-bg);  color: var(--status-running); }
+    .status-badge.done     { background: var(--status-done-bg);     color: var(--status-done); }
+    .status-badge.error    { background: var(--status-error-bg);    color: var(--status-error); }
+    .status-badge.paused   { background: var(--status-paused-bg);   color: var(--status-paused); }
+
+    .status-dot.pending  { background: var(--status-pending); }
+    .status-dot.running  { background: var(--status-running); animation: pulse 1.5s ease-in-out infinite; }
+    .status-dot.done     { background: var(--status-done); }
+    .status-dot.error    { background: var(--status-error); }
+    .status-dot.paused   { background: var(--status-paused); }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    /* Timer Row */
+    .card-timing {
+      display: flex;
+      align-items: center;
+      gap: var(--sp-lg);
+      padding: var(--sp-sm) 0;
+      border-top: 1px solid var(--ink-5);
+      border-bottom: 1px solid var(--ink-5);
+    }
+
+    .timing-item {
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: 2px;
+    }
+
+    .timing-label {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--ink-4);
+    }
+
+    .timing-value {
+      font-family: var(--font-mono);
+      font-size: 20px;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      color: var(--ink-1);
+    }
+
+    .timing-value.running {
+      color: var(--status-running);
+    }
+
+    .timing-value.over-estimate {
+      color: var(--status-error);
+    }
+
+    .timing-divider {
+      width: 1px;
+      height: 28px;
+      background: var(--ink-5);
+    }
+
+    /* Card Notes */
+    .card-notes {
+      font-size: 13px;
+      color: var(--ink-3);
+      line-height: 1.7;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    /* Card Actions */
+    .card-actions {
+      display: flex;
+      gap: var(--sp-xs);
+      flex-wrap: wrap;
+    }
+
+    .action-btn {
+      height: 32px;
+      padding: 0 var(--sp-md);
+      border-radius: 4px;
+      border: 1px solid var(--ink-5);
+      background: transparent;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+      color: var(--ink-2);
+    }
+
+    .action-btn:hover {
+      border-color: var(--ink-3);
+      background: var(--paper);
+    }
+
+    .action-btn.start   { color: var(--status-running); border-color: rgba(108,99,255,0.3); }
+    .action-btn.done    { color: var(--status-done);    border-color: rgba(0,212,170,0.3); }
+    .action-btn.error   { color: var(--status-error);   border-color: rgba(255,82,82,0.3); }
+    .action-btn.pause   { color: var(--status-paused);  border-color: rgba(251,163,42,0.3); }
+    .action-btn.delete  { color: var(--status-error);   border-color: transparent; }
+
+    .action-btn.start:hover  { background: var(--status-running-bg); }
+    .action-btn.done:hover   { background: var(--status-done-bg); }
+    .action-btn.error:hover  { background: var(--status-error-bg); }
+    .action-btn.pause:hover  { background: var(--status-paused-bg); }
+    .action-btn.delete:hover { background: var(--status-error-bg); }
+
+    /* ============================
+       Log Parser Section
+       ============================ */
+    .parser-section {
+      margin-top: var(--sp-3xl);
+      padding-top: var(--sp-3xl);
+      border-top: 1px solid var(--ink-5);
+    }
+
+    .parser-body {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: var(--sp-md);
+      align-items: start;
+    }
+
+    @media (max-width: 600px) {
+      .parser-body {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .form-textarea {
+      width: 100%;
+      min-height: 120px;
+      padding: var(--sp-md);
+      border-radius: 4px;
+      border: 1.5px solid var(--ink-5);
+      font-size: 12px;
+      font-family: var(--font-mono);
+      color: var(--ink-2);
+      background: #fff;
+      resize: vertical;
+      transition: border-color 0.15s;
+      outline: none;
+      line-height: 1.7;
+    }
+
+    .form-textarea:focus {
+      border-color: var(--ink-1);
+      box-shadow: 0 0 0 3px rgba(28,28,28,0.06);
+    }
+
+    .form-textarea::placeholder {
+      color: var(--ink-4);
+      font-size: 11px;
+    }
+
+    .parser-desc {
+      font-size: 12px;
+      color: var(--ink-4);
+      line-height: 1.8;
+      margin-top: var(--sp-sm);
+    }
+
+    .parser-desc code {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      background: var(--ink-5);
+      padding: 1px 5px;
+      border-radius: 3px;
+      color: var(--ink-2);
+    }
+
+    /* Toast notification */
+    .toast {
+      position: fixed;
+      bottom: var(--sp-xl);
+      right: var(--sp-xl);
+      padding: var(--sp-md) var(--sp-lg);
+      background: var(--ink-1);
+      color: #fff;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.05em;
+      z-index: 9999;
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.25s ease;
+      pointer-events: none;
+      max-width: 300px;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .toast.success { background: var(--status-done); color: var(--ink-1); }
+    .toast.error   { background: var(--status-error); }
+    .toast.info    { background: var(--status-running); }
+
+    /* ============================
+       Footer
+       ============================ */
+    .site-footer {
+      border-top: 1px solid var(--ink-5);
+      padding: var(--sp-lg) 0;
+      margin-top: var(--sp-3xl);
+    }
+
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--sp-md);
+      flex-wrap: wrap;
+    }
+
+    .footer-brand {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--ink-4);
+    }
+
+    .footer-note {
+      font-size: 11px;
+      color: var(--ink-4);
+    }
+
+    .footer-note a {
+      color: var(--ink-3);
+      text-decoration: none;
+    }
+    .footer-note a:hover { color: var(--ink-1); }
+
+    /* ============================
+       Modal (Add Task)
+       ============================ */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(10,10,10,0.4);
+      z-index: 200;
+      align-items: flex-start;
+      justify-content: center;
+      padding: var(--sp-2xl) var(--sp-md);
+      backdrop-filter: blur(3px);
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal {
+      background: var(--paper);
+      border-radius: 4px;
+      border: 1px solid var(--ink-5);
+      width: 100%;
+      max-width: 520px;
+      padding: var(--sp-xl);
+      box-shadow: 0 16px 48px rgba(0,0,0,0.16);
+      animation: modal-in 0.2s ease;
+    }
+
+    @keyframes modal-in {
+      from { opacity: 0; transform: translateY(-16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--sp-xl);
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .modal-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--ink-4);
+      margin-bottom: 4px;
+    }
+
+    .modal-body {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-md);
+    }
+
+    .modal-footer {
+      display: flex;
+      gap: var(--sp-sm);
+      margin-top: var(--sp-xl);
+      justify-content: flex-end;
+    }
+
+    .form-input-full {
+      height: 44px;
+      padding: 0 var(--sp-md);
+      border-radius: 4px;
+      border: 1.5px solid var(--ink-5);
+      font-size: 14px;
+      font-family: var(--font-sans);
+      color: var(--ink-1);
+      background: #fff;
+      transition: border-color 0.15s;
+      outline: none;
+      width: 100%;
+    }
+    .form-input-full:focus {
+      border-color: var(--ink-1);
+      box-shadow: 0 0 0 3px rgba(28,28,28,0.08);
+    }
+    .form-input-full::placeholder { color: var(--ink-4); }
+
+    .form-select-full {
+      height: 44px;
+      padding: 0 36px 0 var(--sp-md);
+      border-radius: 4px;
+      border: 1.5px solid var(--ink-5);
+      font-size: 14px;
+      font-family: var(--font-sans);
+      color: var(--ink-1);
+      background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239CA3AF' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 12px center;
+      appearance: none;
+      -webkit-appearance: none;
+      outline: none;
+      cursor: pointer;
+      transition: border-color 0.15s;
+      width: 100%;
+    }
+    .form-select-full:focus {
+      border-color: var(--ink-1);
+      box-shadow: 0 0 0 3px rgba(28,28,28,0.08);
     }
 
     .form-row {
       display: grid;
-      grid-template-columns: 1fr 140px 120px auto;
-      gap: 10px;
-      align-items: end;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--sp-sm);
     }
 
-    .form-group { display: flex; flex-direction: column; gap: 5px; }
-
-    .form-label {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      font-weight: 500;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--text-muted);
+    @media (max-width: 420px) {
+      .form-row { grid-template-columns: 1fr; }
     }
 
-    .form-input {
-      height: 40px;
-      padding: 0 12px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: var(--bg-input);
-      color: var(--text-primary);
-      font-size: 13px;
-      font-family: var(--font-sans);
-      outline: none;
-      transition: border-color 0.15s, box-shadow 0.15s;
-      width: 100%;
+    /* ============================
+       Running glow animation
+       ============================ */
+    .agent-card.status-running {
+      border-color: rgba(108,99,255,0.25);
     }
 
-    .form-input:focus {
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(124,111,255,0.15);
-    }
-
-    .form-input::placeholder { color: var(--text-muted); font-size: 12px; }
-
-    /* Import row */
-    .import-row {
-      display: flex;
-      gap: 10px;
-      padding-top: 14px;
-      border-top: 1px solid var(--border);
-    }
-
-    .import-textarea {
-      flex: 1;
-      min-width: 200px;
-      height: 68px;
-      padding: 10px 12px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: var(--bg-input);
-      color: var(--text-primary);
+    /* ============================
+       Clear All button
+       ============================ */
+    .btn-clear {
+      height: 36px;
+      padding: 0 var(--sp-md);
+      background: transparent;
+      color: var(--status-error);
+      border: 1px solid rgba(255,82,82,0.3);
+      border-radius: 4px;
       font-size: 11px;
       font-family: var(--font-mono);
-      resize: vertical;
-      outline: none;
-      transition: border-color 0.15s;
-    }
-
-    .import-textarea:focus {
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(124,111,255,0.15);
-    }
-
-    .import-textarea::placeholder { color: var(--text-muted); font-size: 10px; line-height: 1.7; }
-
-    /* ===== Buttons ===== */
-    .btn {
-      height: 40px;
-      padding: 0 18px;
-      border-radius: 6px;
-      font-size: 13px;
-      font-weight: 600;
-      font-family: var(--font-sans);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
       cursor: pointer;
       transition: all 0.15s;
-      border: none;
       white-space: nowrap;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
+    }
+    .btn-clear:hover {
+      background: var(--status-error-bg);
+      border-color: var(--status-error);
     }
 
-    .btn:disabled { opacity: 0.35; cursor: not-allowed; }
-    .btn:not(:disabled):hover { filter: brightness(1.1); }
-
-    .btn-primary  { background: var(--primary); color: #fff; }
-    .btn-outline  { background: transparent; color: var(--primary); border: 1px solid rgba(124,111,255,0.4); }
-    .btn-ghost    { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
-
-    .btn-sm { height: 32px; padding: 0 12px; font-size: 12px; }
-
-    .btn-outline:hover { border-color: var(--primary); background: var(--primary-dim); }
-    .btn-ghost:hover   { border-color: var(--border-strong); color: var(--text-primary); background: rgba(255,255,255,0.04); }
-
-    /* ===== Toast ===== */
-    .toast-wrap {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      z-index: 999;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .toast {
-      background: #1e1e2e;
-      border: 1px solid var(--border-strong);
-      color: var(--text-primary);
-      padding: 10px 16px;
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 500;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
-      animation: toast-in 0.2s ease;
-      max-width: 300px;
-    }
-
-    .toast.success { border-color: var(--accent); color: var(--accent); }
-    .toast.error   { border-color: var(--error);  color: var(--error); }
-    .toast.warning { border-color: var(--warning); color: var(--warning); }
-
-    @keyframes toast-in {
-      from { opacity: 0; transform: translateY(8px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    /* ===== Responsive ===== */
-    @media (max-width: 860px) {
-      .sidebar { display: none; }
-      .layout  { margin-left: 0; }
-    }
-
-    @media (max-width: 640px) {
-      .content { padding: 16px; }
-      .form-row {
-        grid-template-columns: 1fr 1fr;
-      }
-      .form-row .btn-primary { grid-column: 1 / -1; }
-      .task-grid { grid-template-columns: 1fr; }
-      .stat-value { font-size: 22px; }
-      .stats-bar { flex-wrap: wrap; }
-      .stat-item { min-width: 50%; border-right: none; border-bottom: 1px solid var(--border); }
+    /* ============================
+       Responsive Tweaks
+       ============================ */
+    @media (max-width: 480px) {
+      .stat-value { font-size: 18px; }
+      .header-title { font-size: 12px; }
     }
   </style>
 </head>
 <body>
+<div class="app-shell">
 
-<!-- ===== Sidebar ===== -->
-<aside class="sidebar">
-  <div class="sidebar-brand">
-    <div class="brand-icon">
-      <svg viewBox="0 0 24 24"><rect x="2" y="3" width="8" height="8" rx="1.5"/><rect x="14" y="3" width="8" height="8" rx="1.5" opacity="0.6"/><rect x="2" y="13" width="8" height="8" rx="1.5" opacity="0.6"/><rect x="14" y="13" width="8" height="8" rx="1.5" opacity="0.35"/></svg>
-    </div>
-    <div>
-      <div class="brand-name">Agent Monitor</div>
-      <div class="brand-sub">Claude Code</div>
-    </div>
-  </div>
-
-  <div class="sidebar-section">
-    <div class="sidebar-section-label">ダッシュボード</div>
-    <div class="nav-item active">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
-      </svg>
-      タスク一覧
-      <span class="nav-badge" id="navBadgeAll">0</span>
-    </div>
-    <div class="nav-item" id="navRunning" onclick="filterView('running')">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-      </svg>
-      進行中
-      <span class="nav-badge" id="navBadgeRunning">0</span>
-    </div>
-    <div class="nav-item" id="navOverdue" onclick="filterView('overdue')">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-      </svg>
-      超過
-      <span class="nav-badge" id="navBadgeOverdue">0</span>
-    </div>
-    <div class="nav-item" id="navDone" onclick="filterView('done')">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="20 6 9 17 4 12"/>
-      </svg>
-      完了
-      <span class="nav-badge" id="navBadgeDone">0</span>
-    </div>
-    <div class="nav-item" id="navFailed" onclick="filterView('failed')">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-      </svg>
-      失敗
-      <span class="nav-badge" id="navBadgeFailed">0</span>
-    </div>
-  </div>
-
-  <div class="sidebar-spacer"></div>
-
-  <div class="sidebar-footer">
-    <div class="sidebar-status">
-      <div class="status-dot-live"></div>
-      LIVE UPDATE
-    </div>
-  </div>
-</aside>
-
-<!-- ===== Main Layout ===== -->
-<div class="layout">
-
-  <!-- Stats Bar -->
-  <div class="stats-bar">
-    <div class="stat-item">
-      <div class="stat-label">設計 / 全タスク</div>
-      <div class="stat-value running" id="statTotal">0</div>
-      <div class="stat-trend">Total agents</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-label">進行中</div>
-      <div class="stat-value running" id="statRunning">0</div>
-      <div class="stat-trend" id="statRunningTrend">—</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-label">完了</div>
-      <div class="stat-value done" id="statDone">0</div>
-      <div class="stat-trend" id="statDoneTrend">—</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-label">超過</div>
-      <div class="stat-value overdue" id="statOverdue">0</div>
-      <div class="stat-trend">Overdue</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-label">失敗</div>
-      <div class="stat-value failed" id="statFailed">0</div>
-      <div class="stat-trend">Failed</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-label">最長経過</div>
-      <div class="stat-value longest" id="statLongest">—</div>
-      <div class="stat-trend">Longest running</div>
-    </div>
-  </div>
-
-  <!-- Content -->
-  <div class="content">
-
-    <!-- Task Grid -->
-    <div>
-      <div class="section-header" style="margin-bottom:14px;">
-        <div class="section-title" id="gridTitle">ACTIVE TASKS</div>
-        <div class="section-actions">
-          <button class="btn btn-ghost btn-sm" id="completeAllBtn">全完了</button>
-          <button class="btn btn-ghost btn-sm" id="clearAllBtn">Clear All</button>
+  <!-- ============================
+       Header
+       ============================ -->
+  <header class="site-header">
+    <div class="container">
+      <div class="header-inner">
+        <div class="header-brand">
+          <div>
+            <div class="header-label">Fig.01 / Dashboard</div>
+            <div class="header-title">Parallel Agent Monitor</div>
+          </div>
         </div>
-      </div>
-
-      <div class="task-grid" id="taskGrid">
-        <div class="empty-state" id="emptyState">
-          <div class="empty-icon">
-            <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
-              <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
-            </svg>
-          </div>
-          <div class="empty-title">エージェントがいません</div>
-          <div class="empty-desc">下のフォームでタスクを追加するか、<br>JSONをインポートして開始してください。</div>
-          <div class="empty-hint">[{"name":"screener","start":"14:30","est":5},<br>{"name":"notion_push","start":"14:31","est":3}]</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Add Task Panel -->
-    <div class="add-panel">
-      <div class="add-panel-header">
-        <div class="add-panel-title">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
-          </svg>
-          新規タスクを追加
-        </div>
-      </div>
-
-      <div class="add-panel-body">
-        <!-- Main Input Row -->
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label" for="taskName">タスク名</label>
-            <input class="form-input" id="taskName" type="text" placeholder="screener / second_opinion / notion_push" autocomplete="off">
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="startTime">開始時刻</label>
-            <input class="form-input" id="startTime" type="time">
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="estMinutes">想定 (分)</label>
-            <input class="form-input" id="estMinutes" type="number" min="1" max="999" placeholder="10" style="font-family:var(--font-mono);">
-          </div>
-          <button class="btn btn-primary" id="addTaskBtn">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            タスクを追加
+        <div class="header-actions">
+          <button class="btn-ghost" id="clearCompletedBtn">
+            <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 6h8M6 2l4 4-4 4"/></svg>
+            完了クリア
+          </button>
+          <button class="btn-primary-pro" id="openModalBtn">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 1v10M1 6h10"/></svg>
+            タスク追加
           </button>
         </div>
+      </div>
+    </div>
+  </header>
 
-        <!-- JSON Import Row -->
-        <div class="import-row">
-          <textarea class="import-textarea" id="importJson" placeholder='JSON一括インポート&#10;[{"name":"screener","start":"14:30","est":5},{"name":"second_opinion","start":"14:31","est":8}]'></textarea>
-          <div style="display:flex;flex-direction:column;gap:8px;justify-content:flex-end;flex-shrink:0;">
-            <button class="btn btn-outline btn-sm" id="importBtn">JSON Import</button>
-            <button class="btn btn-ghost btn-sm" id="exportBtn">JSON Export</button>
-          </div>
+  <!-- ============================
+       Summary Bar
+       ============================ -->
+  <div class="summary-bar">
+    <div class="container">
+      <div class="summary-inner">
+        <div class="stat-item">
+          <span class="stat-value" id="stat-total">0</span>
+          <span class="stat-label">Total</span>
+        </div>
+        <div class="stat-item running">
+          <span class="stat-value" id="stat-running">0</span>
+          <span class="stat-label">Running</span>
+        </div>
+        <div class="stat-item done">
+          <span class="stat-value" id="stat-done">0</span>
+          <span class="stat-label">Done</span>
+        </div>
+        <div class="stat-item error">
+          <span class="stat-value" id="stat-error">0</span>
+          <span class="stat-label">Error</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value" id="stat-avg">--</span>
+          <span class="stat-label">Avg Time</span>
         </div>
       </div>
     </div>
+  </div>
 
-  </div><!-- /content -->
-</div><!-- /layout -->
+  <!-- ============================
+       Main
+       ============================ -->
+  <main class="main-content">
+    <div class="container">
 
-<!-- Toast Container -->
-<div class="toast-wrap" id="toastWrap"></div>
+      <!-- Agent Board -->
+      <section class="board-section">
+        <div class="section-header">
+          <div>
+            <div class="section-eyebrow">Fig.02 / Agents</div>
+            <div class="section-title">エージェント一覧</div>
+          </div>
+          <button class="btn-clear" id="clearAllBtn">全削除</button>
+        </div>
+        <div class="agent-board" id="agentBoard">
+          <div class="empty-state" id="emptyState">
+            <div class="empty-icon">[ ]</div>
+            <div class="empty-title">エージェントがいません</div>
+            <div class="empty-desc">
+              「タスク追加」ボタンで新しいエージェントを登録するか、<br>
+              下のログペーストパーサーから Claude Code 出力を貼り付けてください。
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Log Parser Section -->
+      <section class="parser-section">
+        <div class="section-header">
+          <div>
+            <div class="section-eyebrow">Fig.03 / Parser</div>
+            <div class="section-title">ログペーストパーサー</div>
+          </div>
+        </div>
+        <div class="parser-body">
+          <div>
+            <textarea
+              class="form-textarea"
+              id="logPasteArea"
+              placeholder="Claude Code のターミナル出力をここに貼り付けてください...
+
+例:
+Async agent launched successfully. agentId: a72b8de9... name: investor
+Task started: engineer — refactoring auth module
+Agent a72b8de9 completed successfully"
+            ></textarea>
+            <div class="parser-desc">
+              <code>agentId: xxx</code>、<code>name: yyy</code>、<code>completed</code>、<code>error</code> などのキーワードを自動検出してカードを生成します。<br>
+              完了ログを貼るとステータスが自動更新されます。
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <button class="btn-primary-pro" id="parseLogBtn">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="6" r="4"/><path d="M6 4v2l1.5 1"/></svg>
+              パース
+            </button>
+            <button class="btn-ghost" id="clearLogBtn">クリア</button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-inner">
+        <span class="footer-brand">Parallel Agent Monitor — チームてちお</span>
+        <span class="footer-note">
+          データはブラウザのlocalStorageに保存されます。
+          <a href="https://techio-code.github.io/" target="_blank">@techio_code</a>
+        </span>
+      </div>
+    </div>
+  </footer>
+
+</div>
+
+<!-- ============================
+     Modal: Add Task
+     ============================ -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-eyebrow">New Agent Task</div>
+        <div class="modal-title">タスクを追加</div>
+      </div>
+      <button class="btn-icon" id="closeModalBtn" aria-label="閉じる">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 1l12 12M13 1L1 13"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label" for="taskName">タスク名 *</label>
+        <input
+          type="text"
+          class="form-input-full"
+          id="taskName"
+          placeholder="例: investor agent — 銘柄スクリーニング"
+          maxlength="80"
+          autocomplete="off"
+        >
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="agentType">エージェント種別</label>
+          <select class="form-select-full" id="agentType">
+            <option value="engineer">engineer</option>
+            <option value="investor">investor</option>
+            <option value="writer">writer</option>
+            <option value="researcher">researcher</option>
+            <option value="analyst">analyst</option>
+            <option value="designer">designer</option>
+            <option value="custom">custom</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="estimatedMin">想定時間（分）</label>
+          <input
+            type="number"
+            class="form-input-full"
+            id="estimatedMin"
+            placeholder="30"
+            min="1"
+            max="999"
+          >
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="taskNotes">メモ（任意）</label>
+        <input
+          type="text"
+          class="form-input-full"
+          id="taskNotes"
+          placeholder="例: tools/kabu/screener.py の修正"
+          maxlength="140"
+        >
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" id="cancelModalBtn">キャンセル</button>
+      <button class="btn-primary-pro" id="addTaskBtn">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 1v10M1 6h10"/></svg>
+        追加する
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
 
 <script>
-  // ---- State ----
-  const STORAGE_KEY = 'pam_tasks_v2';
-  let tasks = [];
-  let tickTimer = null;
-  let currentFilter = 'all';
+// ============================================================
+//  Constants & Helpers
+// ============================================================
+const STORAGE_KEY = 'pam_tasks_v1';
 
-  // ---- Storage ----
-  function loadTasks() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      tasks = raw ? JSON.parse(raw) : [];
-    } catch(e) { tasks = []; }
+const STATUS = {
+  PENDING: 'pending',
+  RUNNING: 'running',
+  DONE:    'done',
+  ERROR:   'error',
+  PAUSED:  'paused',
+};
+
+const STATUS_LABEL = {
+  pending: '待機',
+  running: '実行中',
+  done:    '完了',
+  error:   'エラー',
+  paused:  '一時停止',
+};
+
+function genId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+function loadTasks() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function saveTasks(tasks) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+}
+
+// Format seconds → mm:ss or hh:mm:ss
+function formatDuration(seconds) {
+  const s = Math.floor(seconds);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) {
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+  }
+  return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
+
+// Elapsed seconds from startedAt
+function elapsedSeconds(task) {
+  if (!task.startedAt) return 0;
+  const end = task.stoppedAt || Date.now();
+  return Math.floor((end - task.startedAt) / 1000);
+}
+
+// ============================================================
+//  State
+// ============================================================
+let tasks = loadTasks();
+let timerInterval = null;
+
+// ============================================================
+//  Toast
+// ============================================================
+let toastTimer = null;
+function showToast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (type ? ' ' + type : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = 'toast'; }, 2800);
+}
+
+// ============================================================
+//  Summary update
+// ============================================================
+function updateSummary() {
+  const total   = tasks.length;
+  const running = tasks.filter(t => t.status === STATUS.RUNNING).length;
+  const done    = tasks.filter(t => t.status === STATUS.DONE).length;
+  const error   = tasks.filter(t => t.status === STATUS.ERROR).length;
+
+  document.getElementById('stat-total').textContent   = total;
+  document.getElementById('stat-running').textContent = running;
+  document.getElementById('stat-done').textContent    = done;
+  document.getElementById('stat-error').textContent   = error;
+
+  // Average elapsed for completed tasks
+  const doneTasks = tasks.filter(t => t.status === STATUS.DONE && t.startedAt && t.stoppedAt);
+  if (doneTasks.length > 0) {
+    const avg = doneTasks.reduce((acc, t) => acc + elapsedSeconds(t), 0) / doneTasks.length;
+    document.getElementById('stat-avg').textContent = formatDuration(avg);
+  } else {
+    document.getElementById('stat-avg').textContent = '--';
+  }
+}
+
+// ============================================================
+//  Render board
+// ============================================================
+function renderBoard() {
+  const board = document.getElementById('agentBoard');
+  const empty = document.getElementById('emptyState');
+
+  // Remove existing cards (keep empty state)
+  Array.from(board.querySelectorAll('.agent-card')).forEach(el => el.remove());
+
+  if (tasks.length === 0) {
+    empty.style.display = '';
+    updateSummary();
+    return;
+  }
+  empty.style.display = 'none';
+
+  // Sort: running first, then pending, then paused, then done/error
+  const order = { running: 0, pending: 1, paused: 2, error: 3, done: 4 };
+  const sorted = [...tasks].sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9));
+
+  sorted.forEach(task => {
+    const card = buildCard(task);
+    board.appendChild(card);
+  });
+
+  updateSummary();
+}
+
+function buildCard(task) {
+  const card = document.createElement('div');
+  card.className = `agent-card status-${task.status}`;
+  card.dataset.id = task.id;
+
+  const elapsed = elapsedSeconds(task);
+  const elapsedStr = formatDuration(elapsed);
+  const estSec = (task.estimatedMin || 0) * 60;
+  const isOver = estSec > 0 && elapsed > estSec;
+
+  // Build action buttons based on status
+  let actions = '';
+  if (task.status === STATUS.PENDING) {
+    actions = `
+      <button class="action-btn start" data-action="start" data-id="${task.id}">&#9654; 開始</button>
+      <button class="action-btn delete" data-action="delete" data-id="${task.id}">&#215; 削除</button>
+    `;
+  } else if (task.status === STATUS.RUNNING) {
+    actions = `
+      <button class="action-btn done"  data-action="done"  data-id="${task.id}">&#10003; 完了</button>
+      <button class="action-btn error" data-action="error" data-id="${task.id}">&#9888; エラー</button>
+      <button class="action-btn pause" data-action="pause" data-id="${task.id}">&#9646;&#9646; 一時停止</button>
+    `;
+  } else if (task.status === STATUS.PAUSED) {
+    actions = `
+      <button class="action-btn start" data-action="resume" data-id="${task.id}">&#9654; 再開</button>
+      <button class="action-btn error" data-action="error"  data-id="${task.id}">&#9888; エラー</button>
+      <button class="action-btn delete" data-action="delete" data-id="${task.id}">&#215; 削除</button>
+    `;
+  } else {
+    // done or error
+    actions = `
+      <button class="action-btn start" data-action="restart" data-id="${task.id}">&#9654; 再起動</button>
+      <button class="action-btn delete" data-action="delete" data-id="${task.id}">&#215; 削除</button>
+    `;
   }
 
-  function saveTasks() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); } catch(e) {}
-  }
+  const timingValueClass = task.status === STATUS.RUNNING
+    ? (isOver ? 'timing-value over-estimate' : 'timing-value running')
+    : 'timing-value';
 
-  // ---- Helpers ----
-  function genId() {
-    return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  }
+  card.innerHTML = `
+    <div class="card-top">
+      <div class="card-meta">
+        <div class="card-agent-type">${escHtml(task.agentType)}</div>
+        <div class="card-name" title="${escHtml(task.name)}">${escHtml(task.name)}</div>
+      </div>
+      <span class="status-badge ${task.status}">
+        <span class="status-dot ${task.status}"></span>
+        ${STATUS_LABEL[task.status]}
+      </span>
+    </div>
 
-  function parseTimeToMs(timeStr) {
-    if (!timeStr) return Date.now();
-    const [h, m] = timeStr.split(':').map(Number);
-    const d = new Date();
-    d.setHours(h, m, 0, 0);
-    return d.getTime();
-  }
+    <div class="card-timing">
+      <div class="timing-item">
+        <span class="timing-label">経過</span>
+        <span class="${timingValueClass}" data-timer="${task.id}">${elapsedStr}</span>
+      </div>
+      <div class="timing-divider"></div>
+      <div class="timing-item">
+        <span class="timing-label">想定</span>
+        <span class="timing-value">${task.estimatedMin ? task.estimatedMin + 'm' : '--'}</span>
+      </div>
+      ${task.startedAt ? `
+      <div class="timing-divider"></div>
+      <div class="timing-item">
+        <span class="timing-label">開始</span>
+        <span class="timing-value" style="font-size:13px">${formatTime(task.startedAt)}</span>
+      </div>` : ''}
+    </div>
 
-  function msToHHMMSS(ms) {
-    if (ms < 0) ms = 0;
-    const s = Math.floor(ms / 1000);
-    const h = Math.floor(s / 3600);
-    const min = Math.floor((s % 3600) / 60);
-    const sec = s % 60;
-    if (h > 0) {
-      return `${h}:${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
-    }
-    return `${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
-  }
+    ${task.notes ? `<div class="card-notes">${escHtml(task.notes)}</div>` : ''}
 
-  function getStatus(task) {
-    if (task.status === 'done')   return 'done';
-    if (task.status === 'failed') return 'failed';
-    const now = task.endMs || Date.now();
-    const elapsed = now - task.startMs;
-    const est = (task.estMinutes || 0) * 60000;
-    if (!est) return 'running';
-    const ratio = elapsed / est;
-    if (ratio >= 2.0) return 'critical';
-    if (ratio >= 1.0) return 'overdue';
-    return 'running';
-  }
+    <div class="card-actions">
+      ${actions}
+    </div>
+  `;
 
-  function getStatusLabel(status) {
-    const map = { running:'RUNNING', done:'DONE', failed:'FAILED', overdue:'OVERDUE', critical:'CRITICAL' };
-    return map[status] || status.toUpperCase();
-  }
+  return card;
+}
 
-  function getProgressPct(task) {
-    if (task.status === 'done' || task.status === 'failed') return 100;
-    const elapsed = Date.now() - task.startMs;
-    const est = (task.estMinutes || 0) * 60000;
-    if (!est) return null;
-    return Math.min(Math.round(elapsed / est * 100), 200);
-  }
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
-  function progressColor(pct, status) {
-    if (status === 'done')     return '#00cfaa';
-    if (status === 'failed')   return '#ff5c5c';
-    if (status === 'critical') return '#ff5c5c';
-    if (status === 'overdue')  return '#f5a623';
-    if (pct >= 80)             return '#f5a623';
-    return '#7c6fff';
-  }
+function formatTime(ts) {
+  if (!ts) return '--';
+  const d = new Date(ts);
+  const h = String(d.getHours()).padStart(2, '0');
+  const m = String(d.getMinutes()).padStart(2, '0');
+  return `${h}:${m}`;
+}
 
-  function escHtml(s) {
-    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
-
-  // ---- Filter ----
-  function filterView(type) {
-    currentFilter = currentFilter === type ? 'all' : type;
-    // Update nav highlight
-    ['navRunning','navOverdue','navDone','navFailed'].forEach(id => {
-      document.getElementById(id).classList.remove('active');
+// ============================================================
+//  Timer tick — update only running timers in-place
+// ============================================================
+function startGlobalTimer() {
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    const runningTasks = tasks.filter(t => t.status === STATUS.RUNNING);
+    if (runningTasks.length === 0) return;
+    runningTasks.forEach(task => {
+      const el = document.querySelector(`[data-timer="${task.id}"]`);
+      if (!el) return;
+      const s = elapsedSeconds(task);
+      const estSec = (task.estimatedMin || 0) * 60;
+      const isOver = estSec > 0 && s > estSec;
+      el.textContent = formatDuration(s);
+      el.className = isOver ? 'timing-value over-estimate' : 'timing-value running';
     });
-    document.querySelector('.nav-item').classList.remove('active');
-    if (currentFilter === 'all') {
-      document.querySelector('.nav-item').classList.add('active');
-    } else {
-      const map = { running:'navRunning', overdue:'navOverdue', done:'navDone', failed:'navFailed' };
-      if (map[currentFilter]) document.getElementById(map[currentFilter]).classList.add('active');
-    }
-    render();
+    updateSummary();
+  }, 1000);
+}
+
+// ============================================================
+//  Task actions
+// ============================================================
+function handleAction(action, id) {
+  const idx = tasks.findIndex(t => t.id === id);
+  if (idx === -1) return;
+  const task = tasks[idx];
+
+  switch (action) {
+    case 'start':
+      task.status = STATUS.RUNNING;
+      task.startedAt = task.startedAt || Date.now();
+      task.stoppedAt = null;
+      showToast(`"${task.name}" を開始しました`, 'info');
+      break;
+    case 'resume':
+      task.status = STATUS.RUNNING;
+      task.pausedMs = (task.pausedMs || 0) + (Date.now() - (task.pausedAt || Date.now()));
+      task.startedAt = Date.now() - elapsedSeconds(task) * 1000; // recalibrate
+      task.stoppedAt = null;
+      showToast(`"${task.name}" を再開しました`, 'info');
+      break;
+    case 'pause':
+      task.status = STATUS.PAUSED;
+      task.pausedAt = Date.now();
+      task.stoppedAt = Date.now();
+      showToast(`"${task.name}" を一時停止しました`);
+      break;
+    case 'done':
+      task.status = STATUS.DONE;
+      task.stoppedAt = Date.now();
+      showToast(`"${task.name}" が完了しました！`, 'success');
+      break;
+    case 'error':
+      task.status = STATUS.ERROR;
+      task.stoppedAt = Date.now();
+      showToast(`"${task.name}" がエラーになりました`, 'error');
+      break;
+    case 'restart':
+      task.status = STATUS.PENDING;
+      task.startedAt = null;
+      task.stoppedAt = null;
+      task.pausedAt = null;
+      task.pausedMs = 0;
+      showToast(`"${task.name}" をリセットしました`);
+      break;
+    case 'delete':
+      if (!confirm(`"${task.name}" を削除しますか？`)) return;
+      tasks.splice(idx, 1);
+      saveTasks(tasks);
+      renderBoard();
+      return;
   }
 
-  // ---- Add Task ----
-  function addTask(name, timeStr, estMinutes) {
-    if (!name.trim()) return showToast('タスク名を入力してください', 'error');
-    const startMs = timeStr ? parseTimeToMs(timeStr) : Date.now();
-    tasks.push({
-      id:         genId(),
-      name:       name.trim(),
-      startMs,
-      estMinutes: parseInt(estMinutes) || 0,
-      status:     'running',
-      endMs:      null,
-    });
-    saveTasks();
-    render();
-    showToast(`"${name.trim()}" を追加しました`, 'success');
-  }
+  saveTasks(tasks);
+  renderBoard();
+}
 
-  // ---- JSON Import ----
-  function importJson(raw) {
-    let arr;
-    try { arr = JSON.parse(raw.trim()); } catch(e) { return showToast('JSON形式が不正です', 'error'); }
-    if (!Array.isArray(arr)) return showToast('配列形式で入力してください', 'error');
-    let added = 0;
-    for (const item of arr) {
-      if (!item.name) continue;
-      tasks.push({
-        id:         genId(),
-        name:       String(item.name).trim(),
-        startMs:    item.start ? parseTimeToMs(item.start) : Date.now(),
-        estMinutes: parseInt(item.est || item.estMinutes) || 0,
-        status:     item.status || 'running',
-        endMs:      null,
-      });
-      added++;
-    }
-    if (!added) return showToast('有効なタスクがありませんでした', 'warning');
-    saveTasks();
-    render();
-    showToast(`${added}件のタスクをインポートしました`, 'success');
-  }
+// ============================================================
+//  Log Parser
+// ============================================================
+function parseLog(text) {
+  const lines = text.split('\n');
+  let created = 0;
+  let updated = 0;
 
-  // ---- JSON Export ----
-  function exportJson() {
-    const data = tasks.map(t => ({
-      name: t.name,
-      start: new Date(t.startMs).toTimeString().slice(0,5),
-      est: t.estMinutes,
-      status: t.status,
-    }));
-    const str = JSON.stringify(data, null, 2);
-    navigator.clipboard.writeText(str)
-      .then(() => showToast('クリップボードにコピーしました', 'success'))
-      .catch(() => showToast('コピー失敗 — 手動でコピーしてください', 'error'));
-    return str;
-  }
+  // Patterns to detect
+  // 1. New agent launched: "agentId: xxxxx" and optionally "name: yyy"
+  // 2. Task started: "Task started: name —"
+  // 3. Completed: "Agent xxx completed" or "agentId: xxx completed"
+  // 4. Error: "Agent xxx error/failed"
 
-  // ---- Task Actions ----
-  function markDone(id) {
-    const t = tasks.find(x => x.id === id);
-    if (!t) return;
-    t.status = 'done'; t.endMs = Date.now();
-    saveTasks(); render();
-  }
+  const launchPattern = /(?:agentId|agent[_\s]?id)[:\s]+([a-z0-9\-_]{4,})/i;
+  const namePattern   = /(?:name|task)[:\s]+([^\s,;—\n]+)/i;
+  const donePattern   = /(?:completed?|finished?|done|success)/i;
+  const errorPattern  = /(?:error|fail(?:ed)?|crash)/i;
+  const taskStartPattern = /Task\s+started[:\s]+([^—\-\n]+)/i;
 
-  function markFailed(id) {
-    const t = tasks.find(x => x.id === id);
-    if (!t) return;
-    t.status = 'failed'; t.endMs = Date.now();
-    saveTasks(); render();
-  }
+  lines.forEach(line => {
+    const lineTrim = line.trim();
+    if (!lineTrim) return;
 
-  function deleteTask(id) {
-    tasks = tasks.filter(x => x.id !== id);
-    saveTasks(); render();
-  }
-
-  function rerunTask(id) {
-    const t = tasks.find(x => x.id === id);
-    if (!t) return;
-    t.status = 'running'; t.startMs = Date.now(); t.endMs = null;
-    saveTasks(); render();
-    showToast(`"${t.name}" を再実行します`, 'success');
-  }
-
-  function completeAll() {
-    tasks.filter(t => t.status === 'running').forEach(t => {
-      t.status = 'done'; t.endMs = Date.now();
-    });
-    saveTasks(); render();
-    showToast('実行中のタスクをすべて完了にしました', 'success');
-  }
-
-  function clearAll() {
-    if (!tasks.length) return;
-    if (!confirm(`全${tasks.length}件のタスクを削除してよろしいですか?`)) return;
-    tasks = []; saveTasks(); render();
-    showToast('クリアしました', 'warning');
-  }
-
-  // ---- Render ----
-  function render() {
-    const grid = document.getElementById('taskGrid');
-    const empty = document.getElementById('emptyState');
-
-    // Counts
-    const total   = tasks.length;
-    const running = tasks.filter(t => t.status === 'running').length;
-    const overdue = tasks.filter(t => { const s = getStatus(t); return s === 'overdue' || s === 'critical'; }).length;
-    const done    = tasks.filter(t => t.status === 'done').length;
-    const failed  = tasks.filter(t => t.status === 'failed').length;
-
-    // Stats bar
-    document.getElementById('statTotal').textContent   = total;
-    document.getElementById('statRunning').textContent = running;
-    document.getElementById('statDone').textContent    = done;
-    document.getElementById('statOverdue').textContent = overdue;
-    document.getElementById('statFailed').textContent  = failed;
-
-    // Trends
-    document.getElementById('statRunningTrend').textContent = running > 0 ? `${overdue} overdue` : '— idle';
-    document.getElementById('statDoneTrend').textContent    = total > 0 ? `${Math.round(done/total*100)}% complete` : '—';
-
-    // Longest running
-    const runningTasks = tasks.filter(t => t.status === 'running');
-    if (runningTasks.length) {
-      const maxMs = Math.max(...runningTasks.map(t => Date.now() - t.startMs));
-      document.getElementById('statLongest').textContent = msToHHMMSS(maxMs);
-    } else {
-      document.getElementById('statLongest').textContent = '—';
-    }
-
-    // Sidebar badges
-    document.getElementById('navBadgeAll').textContent     = total;
-    document.getElementById('navBadgeRunning').textContent = running;
-    document.getElementById('navBadgeOverdue').textContent = overdue;
-    document.getElementById('navBadgeDone').textContent    = done;
-    document.getElementById('navBadgeFailed').textContent  = failed;
-
-    // Grid title
-    const filterLabel = { all:'ACTIVE TASKS', running:'進行中', overdue:'超過タスク', done:'完了', failed:'失敗' };
-    document.getElementById('gridTitle').textContent = filterLabel[currentFilter] || 'ACTIVE TASKS';
-
-    // Remove existing cards
-    grid.querySelectorAll('.task-card').forEach(el => el.remove());
-
-    // Filter
-    let visible = tasks;
-    if (currentFilter !== 'all') {
-      visible = tasks.filter(t => {
-        const s = getStatus(t);
-        if (currentFilter === 'overdue') return s === 'overdue' || s === 'critical';
-        return t.status === currentFilter || s === currentFilter;
-      });
-    }
-
-    if (!visible.length) {
-      empty.style.display = '';
+    // Case 1: "Task started: NAME" pattern
+    const tsMatch = lineTrim.match(taskStartPattern);
+    if (tsMatch) {
+      const name = tsMatch[1].trim();
+      // Check if already exists
+      const existing = tasks.find(t => t.name.toLowerCase() === name.toLowerCase());
+      if (existing) {
+        if (existing.status === STATUS.PENDING) {
+          existing.status = STATUS.RUNNING;
+          existing.startedAt = existing.startedAt || Date.now();
+          updated++;
+        }
+      } else {
+        tasks.push({
+          id: genId(),
+          name: name,
+          agentType: 'custom',
+          estimatedMin: null,
+          notes: '[parsed from log]',
+          status: STATUS.RUNNING,
+          startedAt: Date.now(),
+          stoppedAt: null,
+          createdAt: Date.now(),
+        });
+        created++;
+      }
       return;
     }
-    empty.style.display = 'none';
 
-    // Sort
-    const order = { critical:0, overdue:1, running:2, failed:3, done:4 };
-    const sorted = [...visible].sort((a, b) => {
-      const sa = getStatus(a), sb = getStatus(b);
-      return (order[sa] ?? 5) - (order[sb] ?? 5) || b.startMs - a.startMs;
-    });
+    // Case 2: Launch line with agentId
+    const launchMatch = lineTrim.match(launchPattern);
+    if (launchMatch) {
+      const agentId = launchMatch[1];
+      const nameMatch = lineTrim.match(namePattern);
+      const name = nameMatch ? nameMatch[1].trim() : agentId;
 
-    for (const task of sorted) {
-      grid.appendChild(buildCard(task));
-    }
-  }
+      const existing = tasks.find(t => t.agentId === agentId || t.name.toLowerCase() === name.toLowerCase());
 
-  function buildCard(task) {
-    const status  = getStatus(task);
-    const elapsed = task.endMs ? task.endMs - task.startMs : Date.now() - task.startMs;
-    const pct     = getProgressPct(task);
-    const pgColor = progressColor(pct, status);
-    const startStr = new Date(task.startMs).toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit' });
-    const estStr   = task.estMinutes ? `${task.estMinutes}分` : '—';
-
-    // Sub label
-    let subLabel = `想定: ${estStr}`;
-    if (task.status === 'running' && task.estMinutes) {
-      const est = task.estMinutes * 60000;
-      if (elapsed > est) {
-        subLabel = `+${msToHHMMSS(elapsed - est)} 超過 (想定 ${estStr})`;
-      } else {
-        subLabel = `残り ${msToHHMMSS(est - elapsed)} (想定 ${estStr})`;
-      }
-    } else if (task.status === 'done')   { subLabel = `完了 (想定 ${estStr})`; }
-    else if (task.status === 'failed')   { subLabel = `失敗 (想定 ${estStr})`; }
-
-    const isFinished = task.status === 'done' || task.status === 'failed';
-    const actionBtns = isFinished
-      ? `<button class="icon-btn" title="再実行" onclick="rerunTask('${task.id}')">
-           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.2"/></svg>
-         </button>`
-      : `<button class="icon-btn done-btn" title="完了" onclick="markDone('${task.id}')">
-           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-         </button>
-         <button class="icon-btn fail-btn" title="失敗" onclick="markFailed('${task.id}')">
-           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-         </button>`;
-
-    const progressBar = pct !== null
-      ? `<div class="progress-track">
-           <div class="progress-fill" style="width:${Math.min(pct,100)}%;background:${pgColor};"></div>
-         </div>`
-      : '';
-
-    const card = document.createElement('div');
-    card.className = `task-card ${status}`;
-    card.dataset.id = task.id;
-    card.innerHTML = `
-      <div class="card-head">
-        <div class="card-name">${escHtml(task.name)}</div>
-        <span class="badge badge-${status}">${getStatusLabel(status)}</span>
-      </div>
-      <div class="card-timer">
-        <div class="timer-elapsed" id="elapsed-${task.id}">${msToHHMMSS(elapsed)}</div>
-        <div class="timer-sub" id="sub-${task.id}">${subLabel}</div>
-      </div>
-      ${progressBar}
-      <div class="card-foot">
-        <div class="card-meta">開始: ${startStr}<br>想定: ${estStr}</div>
-        <div class="card-actions">
-          ${actionBtns}
-          <button class="icon-btn del-btn" title="削除" onclick="deleteTask('${task.id}')">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-          </button>
-        </div>
-      </div>`;
-    return card;
-  }
-
-  // ---- Tick ----
-  function tick() {
-    const now = Date.now();
-    for (const task of tasks) {
-      if (task.status !== 'running') continue;
-      const elapsed = now - task.startMs;
-      const el   = document.getElementById(`elapsed-${task.id}`);
-      const sub  = document.getElementById(`sub-${task.id}`);
-      const card = document.querySelector(`.task-card[data-id="${task.id}"]`);
-      if (!el || !card) continue;
-
-      el.textContent = msToHHMMSS(elapsed);
-
-      const status = getStatus(task);
-      const prevClass = [...card.classList].find(c => ['running','overdue','critical','done','failed'].includes(c));
-      if (prevClass !== status) {
-        card.classList.remove('running','overdue','critical','done','failed');
-        card.classList.add(status);
-        const badge = card.querySelector('.badge');
-        if (badge) { badge.className = `badge badge-${status}`; badge.textContent = getStatusLabel(status); }
-        if (status === 'overdue')  showToast(`"${task.name}" が想定時間を超過しています`, 'warning');
-        if (status === 'critical') showToast(`"${task.name}" が想定の2倍超過 — 要確認`, 'error');
-      }
-
-      if (sub && task.estMinutes) {
-        const est = task.estMinutes * 60000;
-        if (elapsed > est) {
-          sub.textContent = `+${msToHHMMSS(elapsed - est)} 超過 (想定 ${task.estMinutes}分)`;
-        } else {
-          sub.textContent = `残り ${msToHHMMSS(est - elapsed)} (想定 ${task.estMinutes}分)`;
+      if (donePattern.test(lineTrim)) {
+        if (existing) {
+          existing.status = STATUS.DONE;
+          existing.stoppedAt = existing.stoppedAt || Date.now();
+          updated++;
         }
+        return;
       }
 
-      const pct = getProgressPct(task);
-      const bar = card.querySelector('.progress-fill');
-      if (bar && pct !== null) {
-        bar.style.width = `${Math.min(pct, 100)}%`;
-        bar.style.background = progressColor(pct, status);
+      if (errorPattern.test(lineTrim)) {
+        if (existing) {
+          existing.status = STATUS.ERROR;
+          existing.stoppedAt = existing.stoppedAt || Date.now();
+          updated++;
+        }
+        return;
+      }
+
+      if (!existing) {
+        tasks.push({
+          id: genId(),
+          agentId: agentId,
+          name: name,
+          agentType: detectAgentType(name),
+          estimatedMin: null,
+          notes: '[parsed from log]',
+          status: STATUS.RUNNING,
+          startedAt: Date.now(),
+          stoppedAt: null,
+          createdAt: Date.now(),
+        });
+        created++;
+      }
+      return;
+    }
+
+    // Case 3: "Agent XXX completed/error" without agentId tag
+    const agentRef = lineTrim.match(/(?:Agent|agent)\s+([a-z0-9\-_]{4,})\s+(completed?|finished?|done|success|error|fail)/i);
+    if (agentRef) {
+      const ref = agentRef[1];
+      const result = agentRef[2].toLowerCase();
+      const existing = tasks.find(t =>
+        (t.agentId && t.agentId.startsWith(ref)) ||
+        t.name.toLowerCase().includes(ref.toLowerCase())
+      );
+      if (existing) {
+        if (donePattern.test(result)) {
+          existing.status = STATUS.DONE;
+          existing.stoppedAt = existing.stoppedAt || Date.now();
+        } else {
+          existing.status = STATUS.ERROR;
+          existing.stoppedAt = existing.stoppedAt || Date.now();
+        }
+        updated++;
       }
     }
+  });
 
-    // Summary tick
-    const running = tasks.filter(t => t.status === 'running').length;
-    const overdue = tasks.filter(t => { const s = getStatus(t); return s === 'overdue' || s === 'critical'; }).length;
-    document.getElementById('statRunning').textContent  = running;
-    document.getElementById('statOverdue').textContent  = overdue;
-    document.getElementById('navBadgeRunning').textContent = running;
-    document.getElementById('navBadgeOverdue').textContent = overdue;
-    if (running > 0) {
-      const maxMs = Math.max(...tasks.filter(t => t.status === 'running').map(t => now - t.startMs));
-      document.getElementById('statLongest').textContent = msToHHMMSS(maxMs);
+  return { created, updated };
+}
+
+function detectAgentType(name) {
+  const n = name.toLowerCase();
+  if (n.includes('investor') || n.includes('kabu')) return 'investor';
+  if (n.includes('engineer') || n.includes('eng')) return 'engineer';
+  if (n.includes('writer') || n.includes('write')) return 'writer';
+  if (n.includes('research')) return 'researcher';
+  if (n.includes('analyst')) return 'analyst';
+  if (n.includes('design')) return 'designer';
+  return 'custom';
+}
+
+// ============================================================
+//  Modal
+// ============================================================
+function openModal() {
+  document.getElementById('modalOverlay').classList.add('active');
+  document.getElementById('taskName').focus();
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('active');
+  document.getElementById('taskName').value = '';
+  document.getElementById('estimatedMin').value = '';
+  document.getElementById('taskNotes').value = '';
+  document.getElementById('agentType').value = 'engineer';
+}
+
+function addTask() {
+  const name = document.getElementById('taskName').value.trim();
+  if (!name) {
+    document.getElementById('taskName').focus();
+    showToast('タスク名を入力してください', 'error');
+    return;
+  }
+
+  const agentType = document.getElementById('agentType').value;
+  const estimatedMin = parseInt(document.getElementById('estimatedMin').value) || null;
+  const notes = document.getElementById('taskNotes').value.trim();
+
+  tasks.push({
+    id: genId(),
+    name,
+    agentType,
+    estimatedMin,
+    notes,
+    status: STATUS.PENDING,
+    startedAt: null,
+    stoppedAt: null,
+    createdAt: Date.now(),
+  });
+
+  saveTasks(tasks);
+  renderBoard();
+  closeModal();
+  showToast(`"${name}" を追加しました`, 'success');
+}
+
+// ============================================================
+//  Event Listeners
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+  renderBoard();
+  startGlobalTimer();
+
+  // Modal open/close
+  document.getElementById('openModalBtn').addEventListener('click', openModal);
+  document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+  document.getElementById('cancelModalBtn').addEventListener('click', closeModal);
+
+  // Click outside modal to close
+  document.getElementById('modalOverlay').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('modalOverlay')) closeModal();
+  });
+
+  // Add task on Enter
+  document.getElementById('taskName').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') addTask();
+  });
+
+  document.getElementById('addTaskBtn').addEventListener('click', addTask);
+
+  // Board actions (event delegation)
+  document.getElementById('agentBoard').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    handleAction(btn.dataset.action, btn.dataset.id);
+  });
+
+  // Clear completed
+  document.getElementById('clearCompletedBtn').addEventListener('click', () => {
+    const count = tasks.filter(t => t.status === STATUS.DONE).length;
+    if (count === 0) { showToast('完了タスクがありません'); return; }
+    tasks = tasks.filter(t => t.status !== STATUS.DONE);
+    saveTasks(tasks);
+    renderBoard();
+    showToast(`${count}件の完了タスクを削除しました`);
+  });
+
+  // Clear all
+  document.getElementById('clearAllBtn').addEventListener('click', () => {
+    if (tasks.length === 0) { showToast('タスクがありません'); return; }
+    if (!confirm('全タスクを削除しますか？')) return;
+    tasks = [];
+    saveTasks(tasks);
+    renderBoard();
+    showToast('全タスクを削除しました');
+  });
+
+  // Log parser
+  document.getElementById('parseLogBtn').addEventListener('click', () => {
+    const text = document.getElementById('logPasteArea').value.trim();
+    if (!text) { showToast('ログを貼り付けてください', 'error'); return; }
+    const { created, updated } = parseLog(text);
+    if (created === 0 && updated === 0) {
+      showToast('認識できるパターンが見つかりませんでした', 'error');
+      return;
     }
-  }
-
-  // ---- Toast ----
-  function showToast(msg, type = '') {
-    const el = document.createElement('div');
-    el.className = `toast ${type}`;
-    el.textContent = msg;
-    document.getElementById('toastWrap').appendChild(el);
-    setTimeout(() => el.remove(), 3500);
-  }
-
-  // ---- Event Listeners ----
-  document.getElementById('addTaskBtn').addEventListener('click', () => {
-    addTask(
-      document.getElementById('taskName').value,
-      document.getElementById('startTime').value,
-      document.getElementById('estMinutes').value
-    );
-    document.getElementById('taskName').value = '';
-    document.getElementById('estMinutes').value = '';
+    saveTasks(tasks);
+    renderBoard();
+    const msgs = [];
+    if (created > 0) msgs.push(`${created}件を新規登録`);
+    if (updated > 0) msgs.push(`${updated}件を更新`);
+    showToast(msgs.join(' / '), 'success');
   });
 
-  document.getElementById('taskName').addEventListener('keydown', e => {
-    if (e.key === 'Enter') document.getElementById('addTaskBtn').click();
+  document.getElementById('clearLogBtn').addEventListener('click', () => {
+    document.getElementById('logPasteArea').value = '';
   });
 
-  document.getElementById('importBtn').addEventListener('click', () => {
-    const v = document.getElementById('importJson').value;
-    if (!v.trim()) return showToast('JSONを入力してください', 'error');
-    importJson(v);
-    document.getElementById('importJson').value = '';
+  // Cross-tab sync via storage event
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_KEY) {
+      tasks = loadTasks();
+      renderBoard();
+    }
   });
 
-  document.getElementById('exportBtn').addEventListener('click', exportJson);
-  document.getElementById('completeAllBtn').addEventListener('click', completeAll);
-  document.getElementById('clearAllBtn').addEventListener('click', clearAll);
-
-  // Sidebar all tasks click
-  document.querySelector('.nav-item').addEventListener('click', () => filterView('all'));
-
-  // Default start time
-  function setDefaultTime() {
-    const now = new Date();
-    document.getElementById('startTime').value =
-      `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-  }
-
-  // ---- Init ----
-  loadTasks();
-  setDefaultTime();
-  render();
-  tickTimer = setInterval(tick, 1000);
+  // Keyboard shortcut: N = open modal
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'n' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const tag = document.activeElement.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      openModal();
+    }
+    if (e.key === 'Escape') closeModal();
+  });
+});
 </script>
 </body>
 </html>
