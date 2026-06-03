@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Parallel Agent Monitor | チームてちお</title>
-  <meta name="description" content="Claude Code の並列エージェント（Task / bg agent）の進捗をブラウザだけで可視化。サーバー不要・セットアップ10秒。個人開発者向け最小実装。">
+  <meta name="description" content="Claude Code の並列AI作業の進捗を一覧で管理するボードです。実行中・完了・エラーを一目で確認できます。サーバー不要・ブラウザだけで動作。">
   <meta property="og:title" content="Parallel Agent Monitor">
-  <meta property="og:description" content="並列AIエージェントの進捗をリアルタイム可視化。GitHub Pages完結・サーバー不要。">
+  <meta property="og:description" content="複数のAI作業の進捗を一覧で見える化するボードです。Claude Codeで並列実行したタスクの状態を一目で管理できます。">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://techio-code.github.io/parallel-agent-monitor/">
   <meta property="og:image" content="https://techio-code.github.io/parallel-agent-monitor/ogp.png">
@@ -19,39 +19,33 @@
        CSS Variables — Mode C: GQ Dark (Developer Edition)
        ============================ */
     :root {
-      /* GQ Night palette from DESIGN.md */
       --gq-night:    #0F1729;
-      --gq-surface:  #151E33;   /* card / modal surface — 1 step lighter than night */
-      --gq-border:   #1E2A42;   /* subtle border */
-      --gq-lift:     #242F47;   /* hover lift / input bg */
-      --gq-gold:     #D4AF37;   /* accent — used sparingly */
+      --gq-surface:  #151E33;
+      --gq-border:   #1E2A42;
+      --gq-lift:     #242F47;
+      --gq-gold:     #D4AF37;
 
-      /* Legacy aliases (kept for compatibility with all CSS rules below) */
       --paper:   #0F1729;
       --ink:     #E8EAED;
 
-      /* Ink Scale — inverted for dark */
-      --ink-1: #E8EAED;         /* primary text — softer than pure white */
-      --ink-2: #C0C7D6;         /* secondary text */
-      --ink-3: #8B94A8;         /* tertiary / muted */
-      --ink-4: #5A6478;         /* disabled / placeholder */
-      --ink-5: #1E2A42;         /* borders / dividers */
+      --ink-1: #E8EAED;
+      --ink-2: #C0C7D6;
+      --ink-3: #8B94A8;
+      --ink-4: #5A6478;
+      --ink-5: #1E2A42;
 
-      /* Status Colors — vivid enough on dark bg */
       --status-pending:  #6B7280;
-      --status-running:  #7C6FFF;   /* slightly brighter violet for dark */
+      --status-running:  #7C6FFF;
       --status-done:     #00D4AA;
       --status-error:    #FF5252;
       --status-paused:   #FBA32A;
 
-      /* Status BG (dim) — more opaque on dark */
       --status-pending-bg:  rgba(107,114,128,0.15);
       --status-running-bg:  rgba(124,111,255,0.15);
       --status-done-bg:     rgba(0,212,170,0.12);
       --status-error-bg:    rgba(255,82,82,0.12);
       --status-paused-bg:   rgba(251,163,42,0.12);
 
-      /* Spacing — 8px grid */
       --sp-xs:  4px;
       --sp-sm:  8px;
       --sp-md:  16px;
@@ -60,14 +54,10 @@
       --sp-2xl: 48px;
       --sp-3xl: 64px;
 
-      /* Typography */
       --font-sans: 'Noto Sans JP', sans-serif;
       --font-mono: 'JetBrains Mono', monospace;
     }
 
-    /* ============================
-       Reset & Base
-       ============================ */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { scroll-behavior: smooth; }
 
@@ -80,9 +70,6 @@
       -webkit-font-smoothing: antialiased;
     }
 
-    /* ============================
-       Layout
-       ============================ */
     .app-shell {
       display: grid;
       grid-template-rows: auto 1fr auto;
@@ -122,6 +109,14 @@
       gap: var(--sp-sm);
     }
 
+    .header-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--ink-4);
+    }
+
     .header-title {
       font-family: var(--font-mono);
       font-size: 14px;
@@ -131,12 +126,14 @@
       color: var(--ink-1);
     }
 
-    .header-label {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
+    .header-subtitle {
+      font-size: 11px;
       color: var(--ink-4);
+      margin-top: 2px;
+      letter-spacing: 0;
+      text-transform: none;
+      font-family: var(--font-sans);
+      font-weight: 400;
     }
 
     .header-actions {
@@ -146,11 +143,133 @@
     }
 
     /* ============================
+       Hero Banner（アプリ説明）
+       ============================ */
+    .hero-banner {
+      background: var(--gq-surface);
+      border-bottom: 1px solid var(--ink-5);
+      padding: var(--sp-xl) 0;
+    }
+
+    .hero-inner {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--sp-xl);
+      flex-wrap: wrap;
+    }
+
+    .hero-text {
+      flex: 1;
+      min-width: 280px;
+    }
+
+    .hero-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--status-running);
+      margin-bottom: var(--sp-sm);
+      display: flex;
+      align-items: center;
+      gap: var(--sp-xs);
+    }
+
+    .hero-eyebrow-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--status-running);
+      display: inline-block;
+    }
+
+    .hero-title {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--ink-1);
+      margin-bottom: var(--sp-sm);
+      line-height: 1.3;
+    }
+
+    .hero-desc {
+      font-size: 14px;
+      color: var(--ink-3);
+      line-height: 1.8;
+      max-width: 520px;
+    }
+
+    /* ============================
+       How-to Steps（使い方3ステップ）
+       ============================ */
+    .howto-steps {
+      display: flex;
+      gap: var(--sp-md);
+      flex-shrink: 0;
+    }
+
+    @media (max-width: 680px) {
+      .howto-steps {
+        width: 100%;
+      }
+    }
+
+    .step-item {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--sp-sm);
+      min-width: 0;
+    }
+
+    .step-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 1.5px solid var(--ink-5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--ink-4);
+      flex-shrink: 0;
+    }
+
+    .step-item.active .step-num {
+      border-color: var(--status-running);
+      color: var(--status-running);
+    }
+
+    .step-body {}
+
+    .step-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ink-2);
+      margin-bottom: 2px;
+    }
+
+    .step-desc {
+      font-size: 11px;
+      color: var(--ink-4);
+      line-height: 1.6;
+    }
+
+    .step-arrow {
+      color: var(--ink-5);
+      font-size: 16px;
+      margin-top: 4px;
+      flex-shrink: 0;
+    }
+
+    /* ============================
        Summary Bar
        ============================ */
     .summary-bar {
       border-bottom: 1px solid var(--ink-5);
-      background: var(--gq-surface);
+      background: rgba(21, 30, 51, 0.7);
     }
 
     .summary-inner {
@@ -162,7 +281,7 @@
 
     .stat-item {
       flex: 1;
-      min-width: 100px;
+      min-width: 90px;
       padding: var(--sp-md) var(--sp-lg);
       border-right: 1px solid var(--ink-5);
       text-align: center;
@@ -179,10 +298,7 @@
     }
 
     .stat-label {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
+      font-size: 11px;
       color: var(--ink-4);
       display: block;
       margin-top: var(--sp-xs);
@@ -257,11 +373,9 @@
     }
 
     .form-label {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--ink-4);
+      font-size: 12px;
+      color: var(--ink-3);
+      font-weight: 600;
     }
 
     .form-input,
@@ -308,11 +422,10 @@
       color: #fff;
       border: none;
       border-radius: 4px;
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 700;
-      font-family: var(--font-mono);
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+      font-family: var(--font-sans);
+      letter-spacing: 0.03em;
       cursor: pointer;
       transition: background 0.15s, box-shadow 0.15s;
       white-space: nowrap;
@@ -333,10 +446,9 @@
       color: var(--ink-3);
       border: 1px solid var(--gq-border);
       border-radius: 4px;
-      font-size: 11px;
-      font-family: var(--font-mono);
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+      font-size: 12px;
+      font-family: var(--font-sans);
+      letter-spacing: 0.02em;
       cursor: pointer;
       transition: all 0.15s;
       white-space: nowrap;
@@ -386,32 +498,84 @@
       }
     }
 
+    /* ============================
+       Empty State（親切バージョン）
+       ============================ */
     .empty-state {
       grid-column: 1 / -1;
-      padding: var(--sp-3xl);
+      padding: var(--sp-3xl) var(--sp-2xl);
       text-align: center;
       border: 1px dashed var(--ink-5);
       border-radius: 4px;
     }
 
     .empty-icon {
-      font-family: var(--font-mono);
-      font-size: 32px;
-      color: var(--ink-5);
+      font-size: 40px;
       margin-bottom: var(--sp-md);
+      opacity: 0.4;
     }
 
     .empty-title {
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--ink-3);
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--ink-2);
       margin-bottom: var(--sp-sm);
     }
 
     .empty-desc {
-      font-size: 13px;
+      font-size: 14px;
       color: var(--ink-4);
-      line-height: 1.7;
+      line-height: 1.8;
+      margin-bottom: var(--sp-xl);
+    }
+
+    .empty-actions {
+      display: flex;
+      gap: var(--sp-sm);
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn-empty-primary {
+      height: 44px;
+      padding: 0 var(--sp-xl);
+      background: var(--status-running);
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 700;
+      font-family: var(--font-sans);
+      cursor: pointer;
+      transition: background 0.15s, box-shadow 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sp-sm);
+    }
+    .btn-empty-primary:hover {
+      background: #6056e8;
+      box-shadow: 0 0 16px rgba(124,111,255,0.35);
+    }
+
+    .btn-empty-sample {
+      height: 44px;
+      padding: 0 var(--sp-xl);
+      background: transparent;
+      color: var(--ink-3);
+      border: 1px solid var(--gq-border);
+      border-radius: 4px;
+      font-size: 14px;
+      font-family: var(--font-sans);
+      cursor: pointer;
+      transition: all 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sp-sm);
+    }
+    .btn-empty-sample:hover {
+      border-color: var(--ink-3);
+      color: var(--ink-1);
+      background: var(--gq-lift);
     }
 
     /* ============================
@@ -455,6 +619,11 @@
       opacity: 0.85;
     }
 
+    .agent-card.status-running {
+      border-color: rgba(124,111,255,0.35);
+      box-shadow: 0 0 0 1px rgba(124,111,255,0.12) inset;
+    }
+
     /* Card Top Row */
     .card-top {
       display: flex;
@@ -472,10 +641,7 @@
     }
 
     .card-agent-type {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
+      font-size: 11px;
       color: var(--ink-4);
     }
 
@@ -497,11 +663,8 @@
       height: 24px;
       padding: 0 var(--sp-sm);
       border-radius: 100px;
-      font-family: var(--font-mono);
-      font-size: 10px;
-      font-weight: 500;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+      font-size: 11px;
+      font-weight: 600;
       white-space: nowrap;
     }
 
@@ -545,10 +708,7 @@
     }
 
     .timing-label {
-      font-family: var(--font-mono);
-      font-size: 9px;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
+      font-size: 10px;
       color: var(--ink-4);
     }
 
@@ -598,10 +758,9 @@
       border-radius: 4px;
       border: 1px solid var(--gq-border);
       background: transparent;
-      font-size: 11px;
-      font-family: var(--font-mono);
-      font-weight: 500;
-      letter-spacing: 0.06em;
+      font-size: 12px;
+      font-family: var(--font-sans);
+      font-weight: 600;
       cursor: pointer;
       transition: all 0.15s;
       display: inline-flex;
@@ -629,12 +788,43 @@
     .action-btn.delete:hover { background: var(--status-error-bg); }
 
     /* ============================
-       Log Parser Section
+       Paste Import Section（旧:ログペーストパーサー）
        ============================ */
     .parser-section {
       margin-top: var(--sp-3xl);
       padding-top: var(--sp-3xl);
       border-top: 1px solid var(--ink-5);
+    }
+
+    .parser-intro {
+      background: var(--gq-lift);
+      border: 1px solid var(--gq-border);
+      border-radius: 4px;
+      padding: var(--sp-md) var(--sp-lg);
+      margin-bottom: var(--sp-lg);
+      font-size: 13px;
+      color: var(--ink-3);
+      line-height: 1.8;
+    }
+
+    .parser-intro strong {
+      color: var(--ink-2);
+    }
+
+    .parser-sample-block {
+      background: var(--gq-night);
+      border: 1px solid var(--gq-border);
+      border-radius: 4px;
+      padding: var(--sp-md);
+      margin-top: var(--sp-sm);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--ink-4);
+      line-height: 1.9;
+    }
+
+    .parser-sample-block .hl {
+      color: var(--status-running);
     }
 
     .parser-body {
@@ -676,23 +866,6 @@
       font-size: 11px;
     }
 
-    .parser-desc {
-      font-size: 12px;
-      color: var(--ink-4);
-      line-height: 1.8;
-      margin-top: var(--sp-sm);
-    }
-
-    .parser-desc code {
-      font-family: var(--font-mono);
-      font-size: 11px;
-      background: var(--gq-lift);
-      border: 1px solid var(--gq-border);
-      padding: 1px 5px;
-      border-radius: 3px;
-      color: var(--status-running);
-    }
-
     /* Toast notification */
     .toast {
       position: fixed;
@@ -703,15 +876,14 @@
       border: 1px solid var(--gq-border);
       color: var(--ink-1);
       border-radius: 4px;
-      font-family: var(--font-mono);
-      font-size: 12px;
-      letter-spacing: 0.05em;
+      font-family: var(--font-sans);
+      font-size: 13px;
       z-index: 9999;
       transform: translateY(100px);
       opacity: 0;
       transition: all 0.25s ease;
       pointer-events: none;
-      max-width: 300px;
+      max-width: 320px;
       box-shadow: 0 8px 32px rgba(0,0,0,0.5);
     }
 
@@ -720,9 +892,9 @@
       opacity: 1;
     }
 
-    .toast.success { background: var(--status-done); color: var(--ink-1); }
-    .toast.error   { background: var(--status-error); }
-    .toast.info    { background: var(--status-running); }
+    .toast.success { background: var(--status-done); color: #0F1729; }
+    .toast.error   { background: var(--status-error); color: #fff; }
+    .toast.info    { background: var(--status-running); color: #fff; }
 
     /* ============================
        Footer
@@ -809,10 +981,7 @@
     }
 
     .modal-eyebrow {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
+      font-size: 11px;
       color: var(--ink-4);
       margin-bottom: 4px;
     }
@@ -881,14 +1050,6 @@
     }
 
     /* ============================
-       Running glow animation
-       ============================ */
-    .agent-card.status-running {
-      border-color: rgba(124,111,255,0.35);
-      box-shadow: 0 0 0 1px rgba(124,111,255,0.12) inset;
-    }
-
-    /* ============================
        Clear All button
        ============================ */
     .btn-clear {
@@ -898,10 +1059,8 @@
       color: var(--status-error);
       border: 1px solid rgba(255,82,82,0.25);
       border-radius: 4px;
-      font-size: 11px;
-      font-family: var(--font-mono);
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+      font-size: 12px;
+      font-family: var(--font-sans);
       cursor: pointer;
       transition: all 0.15s;
       white-space: nowrap;
@@ -917,6 +1076,7 @@
     @media (max-width: 480px) {
       .stat-value { font-size: 18px; }
       .header-title { font-size: 12px; }
+      .hero-title { font-size: 18px; }
     }
   </style>
 </head>
@@ -931,23 +1091,70 @@
       <div class="header-inner">
         <div class="header-brand">
           <div>
-            <div class="header-label">Fig.01 / Dashboard</div>
+            <div class="header-label">Dashboard</div>
             <div class="header-title">Parallel Agent Monitor</div>
+            <div class="header-subtitle">AI作業の進捗を一目で管理するボード</div>
           </div>
         </div>
         <div class="header-actions">
           <button class="btn-ghost" id="clearCompletedBtn">
-            <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 6h8M6 2l4 4-4 4"/></svg>
-            完了クリア
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 6h8M6 2l4 4-4 4"/></svg>
+            完了を消す
           </button>
           <button class="btn-primary-pro" id="openModalBtn">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 1v10M1 6h10"/></svg>
-            タスク追加
+            <svg width="13" height="13" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 1v10M1 6h10"/></svg>
+            タスクを追加
           </button>
         </div>
       </div>
     </div>
   </header>
+
+  <!-- ============================
+       Hero Banner（アプリ説明 + 使い方）
+       ============================ -->
+  <div class="hero-banner">
+    <div class="container">
+      <div class="hero-inner">
+        <div class="hero-text">
+          <div class="hero-eyebrow">
+            <span class="hero-eyebrow-dot"></span>
+            このアプリでできること
+          </div>
+          <div class="hero-title">複数のAI作業の進捗を、<br>一覧でまとめて管理できます</div>
+          <div class="hero-desc">
+            Claude Code で複数のAIに並行して作業させているとき、「どれが動いていて、どれが終わったか」が一目でわかります。
+            ブラウザだけで動作。サーバー不要です。
+          </div>
+        </div>
+        <div class="howto-steps">
+          <div class="step-item active">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <div class="step-title">タスクを登録</div>
+              <div class="step-desc">「タスクを追加」<br>でAI作業を登録</div>
+            </div>
+          </div>
+          <div class="step-arrow">›</div>
+          <div class="step-item">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <div class="step-title">状態を更新</div>
+              <div class="step-desc">実行中・完了・<br>エラーに切り替え</div>
+            </div>
+          </div>
+          <div class="step-arrow">›</div>
+          <div class="step-item">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <div class="step-title">一覧で確認</div>
+              <div class="step-desc">進捗を上部の<br>カードで把握</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- ============================
        Summary Bar
@@ -957,23 +1164,23 @@
       <div class="summary-inner">
         <div class="stat-item">
           <span class="stat-value" id="stat-total">0</span>
-          <span class="stat-label">Total</span>
+          <span class="stat-label">合計</span>
         </div>
         <div class="stat-item running">
           <span class="stat-value" id="stat-running">0</span>
-          <span class="stat-label">Running</span>
+          <span class="stat-label">実行中</span>
         </div>
         <div class="stat-item done">
           <span class="stat-value" id="stat-done">0</span>
-          <span class="stat-label">Done</span>
+          <span class="stat-label">完了</span>
         </div>
         <div class="stat-item error">
           <span class="stat-value" id="stat-error">0</span>
-          <span class="stat-label">Error</span>
+          <span class="stat-label">エラー</span>
         </div>
         <div class="stat-item">
           <span class="stat-value" id="stat-avg">--</span>
-          <span class="stat-label">Avg Time</span>
+          <span class="stat-label">平均所要時間</span>
         </div>
       </div>
     </div>
@@ -989,54 +1196,69 @@
       <section class="board-section">
         <div class="section-header">
           <div>
-            <div class="section-eyebrow">Fig.02 / Agents</div>
-            <div class="section-title">エージェント一覧</div>
+            <div class="section-eyebrow">タスク一覧</div>
+            <div class="section-title">AI作業カード</div>
           </div>
-          <button class="btn-clear" id="clearAllBtn">全削除</button>
+          <button class="btn-clear" id="clearAllBtn">すべて削除</button>
         </div>
         <div class="agent-board" id="agentBoard">
+          <!-- 空状態（初回表示） -->
           <div class="empty-state" id="emptyState">
-            <div class="empty-icon">[ ]</div>
-            <div class="empty-title">エージェントがいません</div>
+            <div class="empty-icon">&#128196;</div>
+            <div class="empty-title">まだタスクがありません</div>
             <div class="empty-desc">
-              「タスク追加」ボタンで新しいエージェントを登録するか、<br>
-              下のログペーストパーサーから Claude Code 出力を貼り付けてください。
+              「最初のタスクを追加」でAI作業を登録するか、<br>
+              「使用例を見る」を押すとデモカードが表示されます。
+            </div>
+            <div class="empty-actions">
+              <button class="btn-empty-primary" id="emptyAddBtn">
+                <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 1v10M1 6h10"/></svg>
+                最初のタスクを追加
+              </button>
+              <button class="btn-empty-sample" id="emptySampleBtn">
+                &#128270; 使用例を見る
+              </button>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- Log Parser Section -->
+      <!-- Paste Import Section（旧:ログペーストパーサー） -->
       <section class="parser-section">
         <div class="section-header">
           <div>
-            <div class="section-eyebrow">Fig.03 / Parser</div>
-            <div class="section-title">ログペーストパーサー</div>
+            <div class="section-eyebrow">コピペで一括追加</div>
+            <div class="section-title">Claude Codeの出力を貼り付けて自動でタスク追加</div>
           </div>
         </div>
+
+        <div class="parser-intro">
+          <strong>使い方：</strong>Claude Codeのターミナルに表示されたログをそのままコピーして、下のテキストエリアに貼り付けるだけです。
+          AIが「agentId」「completed」「error」などのキーワードを自動で読み取り、タスクカードを作成・更新します。<br><br>
+          <strong>こんなテキストが自動で読み取れます（例）：</strong>
+          <div class="parser-sample-block">
+<span class="hl">Async agent launched successfully. agentId: a72b8de9 name: investor</span>
+Task started: engineer — refactoring auth module
+<span class="hl">Agent a72b8de9 completed successfully</span>
+          </div>
+        </div>
+
         <div class="parser-body">
           <div>
             <textarea
               class="form-textarea"
               id="logPasteArea"
-              placeholder="Claude Code のターミナル出力をここに貼り付けてください...
-
-例:
-Async agent launched successfully. agentId: a72b8de9... name: investor
-Task started: engineer — refactoring auth module
-Agent a72b8de9 completed successfully"
+              placeholder="Claude Codeのターミナル出力をここに貼り付けてください..."
             ></textarea>
-            <div class="parser-desc">
-              <code>agentId: xxx</code>、<code>name: yyy</code>、<code>completed</code>、<code>error</code> などのキーワードを自動検出してカードを生成します。<br>
-              完了ログを貼るとステータスが自動更新されます。
-            </div>
           </div>
           <div style="display:flex;flex-direction:column;gap:8px;">
             <button class="btn-primary-pro" id="parseLogBtn">
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="6" r="4"/><path d="M6 4v2l1.5 1"/></svg>
-              パース
+              <svg width="13" height="13" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="6" r="4"/><path d="M6 4v2l1.5 1"/></svg>
+              読み取る
             </button>
-            <button class="btn-ghost" id="clearLogBtn">クリア</button>
+            <button class="btn-ghost" id="clearLogBtn">
+              クリア
+            </button>
           </div>
         </div>
       </section>
@@ -1050,7 +1272,7 @@ Agent a72b8de9 completed successfully"
       <div class="footer-inner">
         <span class="footer-brand">Parallel Agent Monitor — チームてちお</span>
         <span class="footer-note">
-          データはブラウザのlocalStorageに保存されます。
+          タスクのデータはこのブラウザにのみ保存されます。
           <a href="https://techio-code.github.io/" target="_blank">@techio_code</a>
         </span>
       </div>
@@ -1066,7 +1288,7 @@ Agent a72b8de9 completed successfully"
   <div class="modal">
     <div class="modal-header">
       <div>
-        <div class="modal-eyebrow">New Agent Task</div>
+        <div class="modal-eyebrow">新しいタスクを登録します</div>
         <div class="modal-title">タスクを追加</div>
       </div>
       <button class="btn-icon" id="closeModalBtn" aria-label="閉じる">
@@ -1075,48 +1297,48 @@ Agent a72b8de9 completed successfully"
     </div>
     <div class="modal-body">
       <div class="form-group">
-        <label class="form-label" for="taskName">タスク名 *</label>
+        <label class="form-label" for="taskName">タスク名 *（何をやらせているか）</label>
         <input
           type="text"
           class="form-input-full"
           id="taskName"
-          placeholder="例: investor agent — 銘柄スクリーニング"
+          placeholder="例：investor — 銘柄スクリーニング"
           maxlength="80"
           autocomplete="off"
         >
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label" for="agentType">エージェント種別</label>
+          <label class="form-label" for="agentType">担当AI（種類）</label>
           <select class="form-select-full" id="agentType">
-            <option value="engineer">engineer</option>
-            <option value="investor">investor</option>
-            <option value="writer">writer</option>
-            <option value="researcher">researcher</option>
-            <option value="analyst">analyst</option>
-            <option value="designer">designer</option>
-            <option value="custom">custom</option>
+            <option value="engineer">engineer（開発）</option>
+            <option value="investor">investor（投資）</option>
+            <option value="writer">writer（執筆）</option>
+            <option value="researcher">researcher（調査）</option>
+            <option value="analyst">analyst（分析）</option>
+            <option value="designer">designer（デザイン）</option>
+            <option value="custom">その他</option>
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label" for="estimatedMin">想定時間（分）</label>
+          <label class="form-label" for="estimatedMin">目安の時間（分）</label>
           <input
             type="number"
             class="form-input-full"
             id="estimatedMin"
-            placeholder="30"
+            placeholder="例：30"
             min="1"
             max="999"
           >
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label" for="taskNotes">メモ（任意）</label>
+        <label class="form-label" for="taskNotes">メモ（省略可）</label>
         <input
           type="text"
           class="form-input-full"
           id="taskNotes"
-          placeholder="例: tools/kabu/screener.py の修正"
+          placeholder="例：tools/kabu/screener.py の修正"
           maxlength="140"
         >
       </div>
@@ -1124,7 +1346,7 @@ Agent a72b8de9 completed successfully"
     <div class="modal-footer">
       <button class="btn-ghost" id="cancelModalBtn">キャンセル</button>
       <button class="btn-primary-pro" id="addTaskBtn">
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 1v10M1 6h10"/></svg>
+        <svg width="13" height="13" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 1v10M1 6h10"/></svg>
         追加する
       </button>
     </div>
@@ -1149,12 +1371,60 @@ const STATUS = {
 };
 
 const STATUS_LABEL = {
-  pending: '待機',
+  pending: '待機中',
   running: '実行中',
   done:    '完了',
   error:   'エラー',
   paused:  '一時停止',
 };
+
+// サンプルデータ（「使用例を見る」ボタン用）
+const SAMPLE_TASKS = [
+  {
+    id: 'sample-1',
+    name: 'engineer — screener.py の修正',
+    agentType: 'engineer',
+    estimatedMin: 20,
+    notes: 'フィルタロジックの改善',
+    status: STATUS.RUNNING,
+    startedAt: Date.now() - 8 * 60 * 1000,
+    stoppedAt: null,
+    createdAt: Date.now() - 10 * 60 * 1000,
+  },
+  {
+    id: 'sample-2',
+    name: 'writer — 記事ドラフト作成',
+    agentType: 'writer',
+    estimatedMin: 30,
+    notes: 'Claude Code 活用事例の記事',
+    status: STATUS.DONE,
+    startedAt: Date.now() - 40 * 60 * 1000,
+    stoppedAt: Date.now() - 10 * 60 * 1000,
+    createdAt: Date.now() - 45 * 60 * 1000,
+  },
+  {
+    id: 'sample-3',
+    name: 'analyst — 銘柄スクリーニング',
+    agentType: 'analyst',
+    estimatedMin: 15,
+    notes: 'JPX400 全銘柄のスコア計算',
+    status: STATUS.ERROR,
+    startedAt: Date.now() - 20 * 60 * 1000,
+    stoppedAt: Date.now() - 15 * 60 * 1000,
+    createdAt: Date.now() - 22 * 60 * 1000,
+  },
+  {
+    id: 'sample-4',
+    name: 'researcher — OSS調査',
+    agentType: 'researcher',
+    estimatedMin: 45,
+    notes: 'AI投資ツールのOSS10本',
+    status: STATUS.PENDING,
+    startedAt: null,
+    stoppedAt: null,
+    createdAt: Date.now() - 2 * 60 * 1000,
+  },
+];
 
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -1172,7 +1442,6 @@ function saveTasks(tasks) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
 }
 
-// Format seconds → mm:ss or hh:mm:ss
 function formatDuration(seconds) {
   const s = Math.floor(seconds);
   const h = Math.floor(s / 3600);
@@ -1184,7 +1453,6 @@ function formatDuration(seconds) {
   return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
 }
 
-// Elapsed seconds from startedAt
 function elapsedSeconds(task) {
   if (!task.startedAt) return 0;
   const end = task.stoppedAt || Date.now();
@@ -1196,6 +1464,7 @@ function elapsedSeconds(task) {
 // ============================================================
 let tasks = loadTasks();
 let timerInterval = null;
+let sampleMode = false; // サンプル表示中かどうか
 
 // ============================================================
 //  Toast
@@ -1213,18 +1482,18 @@ function showToast(msg, type = '') {
 //  Summary update
 // ============================================================
 function updateSummary() {
-  const total   = tasks.length;
-  const running = tasks.filter(t => t.status === STATUS.RUNNING).length;
-  const done    = tasks.filter(t => t.status === STATUS.DONE).length;
-  const error   = tasks.filter(t => t.status === STATUS.ERROR).length;
+  const displayTasks = sampleMode ? SAMPLE_TASKS : tasks;
+  const total   = displayTasks.length;
+  const running = displayTasks.filter(t => t.status === STATUS.RUNNING).length;
+  const done    = displayTasks.filter(t => t.status === STATUS.DONE).length;
+  const error   = displayTasks.filter(t => t.status === STATUS.ERROR).length;
 
   document.getElementById('stat-total').textContent   = total;
   document.getElementById('stat-running').textContent = running;
   document.getElementById('stat-done').textContent    = done;
   document.getElementById('stat-error').textContent   = error;
 
-  // Average elapsed for completed tasks
-  const doneTasks = tasks.filter(t => t.status === STATUS.DONE && t.startedAt && t.stoppedAt);
+  const doneTasks = displayTasks.filter(t => t.status === STATUS.DONE && t.startedAt && t.stoppedAt);
   if (doneTasks.length > 0) {
     const avg = doneTasks.reduce((acc, t) => acc + elapsedSeconds(t), 0) / doneTasks.length;
     document.getElementById('stat-avg').textContent = formatDuration(avg);
@@ -1240,19 +1509,19 @@ function renderBoard() {
   const board = document.getElementById('agentBoard');
   const empty = document.getElementById('emptyState');
 
-  // Remove existing cards (keep empty state)
   Array.from(board.querySelectorAll('.agent-card')).forEach(el => el.remove());
 
-  if (tasks.length === 0) {
+  const displayTasks = sampleMode ? SAMPLE_TASKS : tasks;
+
+  if (displayTasks.length === 0) {
     empty.style.display = '';
     updateSummary();
     return;
   }
   empty.style.display = 'none';
 
-  // Sort: running first, then pending, then paused, then done/error
   const order = { running: 0, pending: 1, paused: 2, error: 3, done: 4 };
-  const sorted = [...tasks].sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9));
+  const sorted = [...displayTasks].sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9));
 
   sorted.forEach(task => {
     const card = buildCard(task);
@@ -1272,29 +1541,30 @@ function buildCard(task) {
   const estSec = (task.estimatedMin || 0) * 60;
   const isOver = estSec > 0 && elapsed > estSec;
 
-  // Build action buttons based on status
   let actions = '';
-  if (task.status === STATUS.PENDING) {
+  if (sampleMode) {
+    // サンプルモードではボタン操作不可（表示のみ）
+    actions = `<span style="font-size:11px;color:var(--ink-4);">&#8592; 「タスクを追加」で自分のタスクを登録できます</span>`;
+  } else if (task.status === STATUS.PENDING) {
     actions = `
-      <button class="action-btn start" data-action="start" data-id="${task.id}">&#9654; 開始</button>
+      <button class="action-btn start" data-action="start" data-id="${task.id}">&#9654; 開始する</button>
       <button class="action-btn delete" data-action="delete" data-id="${task.id}">&#215; 削除</button>
     `;
   } else if (task.status === STATUS.RUNNING) {
     actions = `
-      <button class="action-btn done"  data-action="done"  data-id="${task.id}">&#10003; 完了</button>
-      <button class="action-btn error" data-action="error" data-id="${task.id}">&#9888; エラー</button>
+      <button class="action-btn done"  data-action="done"  data-id="${task.id}">&#10003; 完了にする</button>
+      <button class="action-btn error" data-action="error" data-id="${task.id}">&#9888; エラーにする</button>
       <button class="action-btn pause" data-action="pause" data-id="${task.id}">&#9646;&#9646; 一時停止</button>
     `;
   } else if (task.status === STATUS.PAUSED) {
     actions = `
-      <button class="action-btn start" data-action="resume" data-id="${task.id}">&#9654; 再開</button>
-      <button class="action-btn error" data-action="error"  data-id="${task.id}">&#9888; エラー</button>
+      <button class="action-btn start" data-action="resume" data-id="${task.id}">&#9654; 再開する</button>
+      <button class="action-btn error" data-action="error"  data-id="${task.id}">&#9888; エラーにする</button>
       <button class="action-btn delete" data-action="delete" data-id="${task.id}">&#215; 削除</button>
     `;
   } else {
-    // done or error
     actions = `
-      <button class="action-btn start" data-action="restart" data-id="${task.id}">&#9654; 再起動</button>
+      <button class="action-btn start" data-action="restart" data-id="${task.id}">&#9654; 最初からやり直す</button>
       <button class="action-btn delete" data-action="delete" data-id="${task.id}">&#215; 削除</button>
     `;
   }
@@ -1303,10 +1573,22 @@ function buildCard(task) {
     ? (isOver ? 'timing-value over-estimate' : 'timing-value running')
     : 'timing-value';
 
+  // 担当AI表示（内部名→表示名）
+  const agentTypeLabel = {
+    engineer: 'engineer（開発）',
+    investor: 'investor（投資）',
+    writer: 'writer（執筆）',
+    researcher: 'researcher（調査）',
+    analyst: 'analyst（分析）',
+    designer: 'designer（デザイン）',
+    custom: 'その他',
+  };
+  const agentDisplay = agentTypeLabel[task.agentType] || task.agentType;
+
   card.innerHTML = `
     <div class="card-top">
       <div class="card-meta">
-        <div class="card-agent-type">${escHtml(task.agentType)}</div>
+        <div class="card-agent-type">担当: ${escHtml(agentDisplay)}</div>
         <div class="card-name" title="${escHtml(task.name)}">${escHtml(task.name)}</div>
       </div>
       <span class="status-badge ${task.status}">
@@ -1317,13 +1599,13 @@ function buildCard(task) {
 
     <div class="card-timing">
       <div class="timing-item">
-        <span class="timing-label">経過</span>
+        <span class="timing-label">経過時間</span>
         <span class="${timingValueClass}" data-timer="${task.id}">${elapsedStr}</span>
       </div>
       <div class="timing-divider"></div>
       <div class="timing-item">
-        <span class="timing-label">想定</span>
-        <span class="timing-value">${task.estimatedMin ? task.estimatedMin + 'm' : '--'}</span>
+        <span class="timing-label">目安</span>
+        <span class="timing-value">${task.estimatedMin ? task.estimatedMin + '分' : '--'}</span>
       </div>
       ${task.startedAt ? `
       <div class="timing-divider"></div>
@@ -1360,12 +1642,13 @@ function formatTime(ts) {
 }
 
 // ============================================================
-//  Timer tick — update only running timers in-place
+//  Timer tick
 // ============================================================
 function startGlobalTimer() {
   if (timerInterval) clearInterval(timerInterval);
   timerInterval = setInterval(() => {
-    const runningTasks = tasks.filter(t => t.status === STATUS.RUNNING);
+    const displayTasks = sampleMode ? SAMPLE_TASKS : tasks;
+    const runningTasks = displayTasks.filter(t => t.status === STATUS.RUNNING);
     if (runningTasks.length === 0) return;
     runningTasks.forEach(task => {
       const el = document.querySelector(`[data-timer="${task.id}"]`);
@@ -1384,6 +1667,8 @@ function startGlobalTimer() {
 //  Task actions
 // ============================================================
 function handleAction(action, id) {
+  if (sampleMode) return; // サンプルモードでは無効
+
   const idx = tasks.findIndex(t => t.id === id);
   if (idx === -1) return;
   const task = tasks[idx];
@@ -1398,7 +1683,7 @@ function handleAction(action, id) {
     case 'resume':
       task.status = STATUS.RUNNING;
       task.pausedMs = (task.pausedMs || 0) + (Date.now() - (task.pausedAt || Date.now()));
-      task.startedAt = Date.now() - elapsedSeconds(task) * 1000; // recalibrate
+      task.startedAt = Date.now() - elapsedSeconds(task) * 1000;
       task.stoppedAt = null;
       showToast(`"${task.name}" を再開しました`, 'info');
       break;
@@ -1439,18 +1724,26 @@ function handleAction(action, id) {
 }
 
 // ============================================================
+//  Sample Mode（使用例）
+// ============================================================
+function showSample() {
+  sampleMode = true;
+  renderBoard();
+  showToast('使用例を表示中。実際に使うには「タスクを追加」してください。');
+}
+
+function exitSampleMode() {
+  sampleMode = false;
+  renderBoard();
+}
+
+// ============================================================
 //  Log Parser
 // ============================================================
 function parseLog(text) {
   const lines = text.split('\n');
   let created = 0;
   let updated = 0;
-
-  // Patterns to detect
-  // 1. New agent launched: "agentId: xxxxx" and optionally "name: yyy"
-  // 2. Task started: "Task started: name —"
-  // 3. Completed: "Agent xxx completed" or "agentId: xxx completed"
-  // 4. Error: "Agent xxx error/failed"
 
   const launchPattern = /(?:agentId|agent[_\s]?id)[:\s]+([a-z0-9\-_]{4,})/i;
   const namePattern   = /(?:name|task)[:\s]+([^\s,;—\n]+)/i;
@@ -1462,11 +1755,9 @@ function parseLog(text) {
     const lineTrim = line.trim();
     if (!lineTrim) return;
 
-    // Case 1: "Task started: NAME" pattern
     const tsMatch = lineTrim.match(taskStartPattern);
     if (tsMatch) {
       const name = tsMatch[1].trim();
-      // Check if already exists
       const existing = tasks.find(t => t.name.toLowerCase() === name.toLowerCase());
       if (existing) {
         if (existing.status === STATUS.PENDING) {
@@ -1480,7 +1771,7 @@ function parseLog(text) {
           name: name,
           agentType: 'custom',
           estimatedMin: null,
-          notes: '[parsed from log]',
+          notes: '[ログから自動取得]',
           status: STATUS.RUNNING,
           startedAt: Date.now(),
           stoppedAt: null,
@@ -1491,7 +1782,6 @@ function parseLog(text) {
       return;
     }
 
-    // Case 2: Launch line with agentId
     const launchMatch = lineTrim.match(launchPattern);
     if (launchMatch) {
       const agentId = launchMatch[1];
@@ -1525,7 +1815,7 @@ function parseLog(text) {
           name: name,
           agentType: detectAgentType(name),
           estimatedMin: null,
-          notes: '[parsed from log]',
+          notes: '[ログから自動取得]',
           status: STATUS.RUNNING,
           startedAt: Date.now(),
           stoppedAt: null,
@@ -1536,7 +1826,6 @@ function parseLog(text) {
       return;
     }
 
-    // Case 3: "Agent XXX completed/error" without agentId tag
     const agentRef = lineTrim.match(/(?:Agent|agent)\s+([a-z0-9\-_]{4,})\s+(completed?|finished?|done|success|error|fail)/i);
     if (agentRef) {
       const ref = agentRef[1];
@@ -1576,6 +1865,7 @@ function detectAgentType(name) {
 //  Modal
 // ============================================================
 function openModal() {
+  if (sampleMode) exitSampleMode();
   document.getElementById('modalOverlay').classList.add('active');
   document.getElementById('taskName').focus();
 }
@@ -1630,17 +1920,19 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('closeModalBtn').addEventListener('click', closeModal);
   document.getElementById('cancelModalBtn').addEventListener('click', closeModal);
 
-  // Click outside modal to close
   document.getElementById('modalOverlay').addEventListener('click', (e) => {
     if (e.target === document.getElementById('modalOverlay')) closeModal();
   });
 
-  // Add task on Enter
   document.getElementById('taskName').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') addTask();
   });
 
   document.getElementById('addTaskBtn').addEventListener('click', addTask);
+
+  // 空状態のボタン
+  document.getElementById('emptyAddBtn').addEventListener('click', openModal);
+  document.getElementById('emptySampleBtn').addEventListener('click', showSample);
 
   // Board actions (event delegation)
   document.getElementById('agentBoard').addEventListener('click', (e) => {
@@ -1649,8 +1941,9 @@ document.addEventListener('DOMContentLoaded', () => {
     handleAction(btn.dataset.action, btn.dataset.id);
   });
 
-  // Clear completed
+  // Complete clear
   document.getElementById('clearCompletedBtn').addEventListener('click', () => {
+    if (sampleMode) { exitSampleMode(); return; }
     const count = tasks.filter(t => t.status === STATUS.DONE).length;
     if (count === 0) { showToast('完了タスクがありません'); return; }
     tasks = tasks.filter(t => t.status !== STATUS.DONE);
@@ -1661,27 +1954,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Clear all
   document.getElementById('clearAllBtn').addEventListener('click', () => {
+    if (sampleMode) { exitSampleMode(); return; }
     if (tasks.length === 0) { showToast('タスクがありません'); return; }
-    if (!confirm('全タスクを削除しますか？')) return;
+    if (!confirm('すべてのタスクを削除しますか？')) return;
     tasks = [];
     saveTasks(tasks);
     renderBoard();
-    showToast('全タスクを削除しました');
+    showToast('すべてのタスクを削除しました');
   });
 
-  // Log parser
+  // Paste import
   document.getElementById('parseLogBtn').addEventListener('click', () => {
+    if (sampleMode) exitSampleMode();
     const text = document.getElementById('logPasteArea').value.trim();
-    if (!text) { showToast('ログを貼り付けてください', 'error'); return; }
+    if (!text) { showToast('テキストを貼り付けてください', 'error'); return; }
     const { created, updated } = parseLog(text);
     if (created === 0 && updated === 0) {
-      showToast('認識できるパターンが見つかりませんでした', 'error');
+      showToast('読み取れるパターンが見つかりませんでした', 'error');
       return;
     }
     saveTasks(tasks);
     renderBoard();
     const msgs = [];
-    if (created > 0) msgs.push(`${created}件を新規登録`);
+    if (created > 0) msgs.push(`${created}件を新規追加`);
     if (updated > 0) msgs.push(`${updated}件を更新`);
     showToast(msgs.join(' / '), 'success');
   });
@@ -1690,11 +1985,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('logPasteArea').value = '';
   });
 
-  // Cross-tab sync via storage event
+  // Cross-tab sync
   window.addEventListener('storage', (e) => {
     if (e.key === STORAGE_KEY) {
       tasks = loadTasks();
-      renderBoard();
+      if (!sampleMode) renderBoard();
     }
   });
 
